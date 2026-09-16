@@ -1,0 +1,156 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+/*
+ * Color tokens are defined as CSS custom properties so the app can switch
+ * between light and dark themes at runtime (see src/theme.tsx) by toggling
+ * the `data-theme` attribute on <html> — no separate stylesheet needed.
+ * Light is the default theme.
+ */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Light theme (default) */
+  --color-void: #F3F5F8;
+  --color-void-raised: #E9ECF1;
+  --color-panel: #FFFFFF;
+  --color-panel-raised: #F7F8FA;
+  --color-panel-hover: #EEF1F5;
+  --color-hairline: #E3E7ED;
+  --color-hairline-strong: #CDD3DC;
+
+  --color-ink: #171B22;
+  --color-ink-dim: #4B5563;
+  --color-ink-faint: #78808F;
+
+  --color-signal: #D9481F;
+  --color-signal-dim: #F3DED6;
+  --color-data: #2F5FCB;
+  --color-data-dim: #D9E3F8;
+  --color-warn: #B45309;
+  --color-critical: #DC2626;
+  --color-safe: #15803D;
+}
+
+/* Dark theme override — activated by data-theme="dark" on <html>. */
+html[data-theme='dark'] {
+  --color-void: #0A0D12;
+  --color-void-raised: #0E1219;
+  --color-panel: #12161F;
+  --color-panel-raised: #171C27;
+  --color-panel-hover: #1C2230;
+  --color-hairline: #232938;
+  --color-hairline-strong: #2E3648;
+
+  --color-ink: #E8ECF1;
+  --color-ink-dim: #A6AEC0;
+  --color-ink-faint: #6C7488;
+
+  --color-signal: #FF5A36;
+  --color-signal-dim: #7A3324;
+  --color-data: #5B8DEF;
+  --color-data-dim: #2A3B63;
+  --color-warn: #FFB020;
+  --color-critical: #FF4D4D;
+  --color-safe: #35D07F;
+}
+
+:root {
+  --map-scrim: rgba(255, 255, 255, 0.82);
+}
+html[data-theme='dark'] {
+  --map-scrim: rgba(10, 13, 18, 0.7);
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--color-void);
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-void);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-hairline-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-faint);
+}
+
+.leaflet-container {
+  background: var(--color-void-raised) !important;
+  font-family: var(--font-sans);
+}
+
+/*
+ * In dark mode, re-tint the free, key-free OpenStreetMap raster tiles to
+ * match the dashboard's dark theme. This avoids depending on any paid/keyed
+ * "dark mode" tile service — it's a pure CSS filter over the standard OSM
+ * tiles. In light mode the tiles are shown as-is (no filter needed).
+ */
+html[data-theme='dark'] .map-dark-tiles .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.95) saturate(0.7);
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--color-panel-raised);
+  color: var(--color-ink);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: 8px;
+}
+.leaflet-popup-tip {
+  background: var(--color-panel-raised);
+}
+.leaflet-popup-content {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  margin: 10px 12px;
+}
+.leaflet-control-zoom a {
+  background: var(--color-panel-raised) !important;
+  color: var(--color-ink) !important;
+  border-color: var(--color-hairline-strong) !important;
+}
+.leaflet-control-attribution {
+  background: var(--map-scrim) !important;
+  color: var(--color-ink-faint) !important;
+}
+.leaflet-control-attribution a {
+  color: var(--color-ink-dim) !important;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  70% { transform: scale(1.8); opacity: 0; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+.cyclone-pulse {
+  animation: pulse-ring 2.2s cubic-bezier(0.4,0,0.6,1) infinite;
+}
+
+@keyframes sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.radar-sweep {
+  animation: sweep 4s linear infinite;
+  transform-origin: center;
+}
