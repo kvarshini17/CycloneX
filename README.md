@@ -1,4 +1,4 @@
-# CycloneX
+﻿# CycloneX
 
 AI-Powered Cyclone Intelligence & Emergency Decision-Support System
 
@@ -146,6 +146,11 @@ The project is a fully functional architectural prototype. The frontend dashboar
 - Live integration with INSAT-3DR / MOSDAC data streams.
 - Live LLM API integration for the Disaster Commander panel.
 
+## 36. Cloud Deployment Architecture
+The CycloneX prototype is fully cloud-deployed for SIH 2026 judging:
+- **Frontend (Vercel):** The React/Vite SPA is hosted on Vercel's global edge network.
+- **Backend API (Render):** The Node.js/Express ingestion server is deployed as a Render Web Service.
+- **Data Flow:** The Vercel frontend securely proxies live Open-Meteo and NASA GIBS data requests through the Render backend API, bypassing browser CORS restrictions and offloading payload normalization.
 ## 33. Disclaimer
 CycloneX is a hackathon prototype. Risk levels, predictions, and affected-area figures are generated for demonstration purposes and do NOT represent official meteorological forecasts or scientifically validated risk assessments. Final decisions must remain with authorized disaster-management officials.
 
@@ -168,3 +173,4 @@ CycloneX is a hackathon prototype. Risk levels, predictions, and affected-area f
   <b>Team: The Apex Crew</b><br>
   <sub>Problem Statement: SIH26070</sub>
 </div>
+
