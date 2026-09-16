@@ -158,3 +158,13 @@ CycloneX is a hackathon prototype. Risk levels, predictions, and affected-area f
 2. Toggle the mode switch in the top bar to **DEMO REPLAY** to view the timeline playback of Cyclone Michaung.
 3. Toggle the switch to **REAL DATA** to trigger a live Open-Meteo fetch and watch the Risk Assessment and AI Disaster Commander dynamically adjust to current Bay of Bengal conditions.
 4. Open the **What-If Simulator** and adjust the track shift and intensity to observe real-time risk escalation.
+
+---
+
+<div align="center">
+  <h3>🌪️ CycloneX</h3>
+  <b>Built with passion for Smart India Hackathon 2026</b><br>
+  <i>Empowering Disaster Management Authorities with Multi-Source Intelligence.</i><br><br>
+  <b>Team: The Apex Crew</b><br>
+  <sub>Problem Statement: SIH26070</sub>
+</div>
