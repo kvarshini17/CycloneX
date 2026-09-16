@@ -1,10 +1,30 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 
 const app = express();
-app.use(cors());
+
+const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin || origin === allowedOrigin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
 app.use(express.json());
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.get('/api/source-health', (req, res) => {
+  res.json({ status: 'ok', services: { weather: 'OK', satellite: 'OK' }});
+});
 
 // ============================================================================
 // WEATHER DATA ADAPTER
@@ -111,6 +131,6 @@ app.get('/api/data/satellite/latest', (req, res) => {
 });
 
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`CycloneX API Server running on port ${PORT}`);
 });

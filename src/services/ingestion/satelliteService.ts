@@ -202,7 +202,7 @@ export class SatelliteIngestionService {
   public async fetchFrames(mode: 'REAL' | 'DEMO'): Promise<any[]> {
     if (mode === 'DEMO') {
       try {
-        const response = await fetch('/api/data/satellite/frames?case=michaung_2023');
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/data/satellite/frames?case=michaung_2023`);
         if (response.ok) {
           const payload = await response.json();
           if (payload.success) return payload.frames;
@@ -220,3 +220,4 @@ export class SatelliteIngestionService {
 }
 
 export const satelliteService = new SatelliteIngestionService();
+

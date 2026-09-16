@@ -128,9 +128,9 @@ export function runSimulation(inputs: SimulationInputs, liveObservation?: Cyclon
   const normalizedInputs: SimulationInputs = { intensityDeltaPercent: intensity, trackShiftKm };
 
   // --- Wind / pressure / classification ---
-  const baseWind = liveEvaluation?.classification.maxWindKmh ?? liveObservation?.maxSustainedWindKmh ?? cycloneProfile.windKmh;
+  const baseWind = liveEvaluation?.classification.maxWindKmh ?? liveObservation?.atmosphere.maxSustainedWindKmh ?? cycloneProfile.windKmh;
   const windKmh = Math.max(40, Math.round(baseWind * (1 + intensity / 100)));
-  const basePressure = liveEvaluation?.classification.centralPressureHpa ?? liveObservation?.centralPressureHpa ?? cycloneProfile.pressureHpa;
+  const basePressure = liveEvaluation?.classification.centralPressureHpa ?? liveObservation?.atmosphere.centralPressureHpa ?? cycloneProfile.pressureHpa;
   const pressureHpa = Math.max(900, Math.round(basePressure - intensity * 0.6));
   const stage = classifyStage(windKmh);
 
@@ -282,4 +282,5 @@ export function derivePredictionRows(trackPoints: TrackPoint[]): DerivedPredicti
 }
 
 export const baselineSimulation: SimulationResult = runSimulation(BASELINE_INPUTS);
+
 

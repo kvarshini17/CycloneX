@@ -48,7 +48,7 @@ export class WeatherIngestionService {
 
     try {
       // REAL DATA MODE: Hit our API layer
-      const response = await fetch(`/api/data/weather?lat=${lat}&lng=${lng}`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/data/weather?lat=${lat}&lng=${lng}`);
       
       if (!response.ok) {
         throw new Error(`API HTTP ${response.status}`);
@@ -92,3 +92,5 @@ export class WeatherIngestionService {
 }
 
 export const weatherService = new WeatherIngestionService();
+
+
