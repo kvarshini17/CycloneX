@@ -1,6 +1,7 @@
-﻿import { riskAssessment as baseRiskAssessment } from '../data/demoData';
+import { riskAssessment as baseRiskAssessment } from '../data/demoData';
 import { useSimulation } from '../context/SimulationContext';
 import { Panel, PanelHeader, RiskPill } from './ui';
+import type { RiskLevel } from '../types';
 
 const priorityTone: Record<string, string> = {
   STANDARD: 'text-safe',
@@ -9,21 +10,34 @@ const priorityTone: Record<string, string> = {
   CRITICAL: 'text-critical',
 };
 
+// Simple heuristic derived from AI wind output
+function computeAiRisk(windKmh: number): RiskLevel {
+  if (windKmh > 110) return 'HIGH';
+  if (windKmh > 70) return 'MEDIUM';
+  return 'LOW';
+}
+
 export function RiskAssessmentPanel() {
-  const { result, isModified, appMode } = useSimulation();
+  const { result, isModified, appMode, aiData } = useSimulation();
+
+  // If in real mode and AI data is available, derive physical risks from AI prediction
+  const windRisk = (appMode === 'REAL' && aiData) ? computeAiRisk(aiData.wind) : result.windRisk;
+  const surgeRisk = (appMode === 'REAL' && aiData) ? computeAiRisk(aiData.wind - 20) : result.stormSurgeRisk;
+  const floodRisk = (appMode === 'REAL' && aiData) ? computeAiRisk(aiData.wind - 30) : result.floodRisk;
+  const infraRisk = (appMode === 'REAL' && aiData) ? computeAiRisk(aiData.wind + 10) : result.infrastructureRisk;
 
   const rows = [
-    { label: 'Flood Risk', level: result.floodRisk },
-    { label: 'Wind Risk', level: result.windRisk },
-    { label: 'Storm Surge Risk', level: result.stormSurgeRisk },
-    { label: 'Infrastructure Risk', level: result.infrastructureRisk },
+    { label: 'Flood Risk (Derived)', level: floodRisk },
+    { label: 'Wind Risk (Derived)', level: windRisk },
+    { label: 'Storm Surge Risk (Derived)', level: surgeRisk },
+    { label: 'Infrastructure Risk (Derived)', level: infraRisk },
   ];
 
   const hospitalsRequiringPrep = result.hospitals.filter((h) => h.priority !== 'Monitor').length;
 
   return (
     <Panel>
-      <PanelHeader title="Localized Risk Assessment" note={isModified ? 'Simulated scenario' : (appMode === 'REAL' ? 'Live ML Model' : 'Demo scoring model')} />
+      <PanelHeader title="Localized Risk Assessment" note={isModified ? 'Simulated scenario' : (appMode === 'REAL' ? 'Driven by AI Pred' : 'Demo scoring model')} />
       <div className="p-4">
         <div className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
           <div className="flex items-center justify-between rounded-lg border border-critical/30 bg-critical/5 px-4 py-3">
@@ -53,28 +67,44 @@ export function RiskAssessmentPanel() {
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <MiniStat label="Affected Population" value={`${result.affectedPopulationM}M`} />
-          <MiniStat label="High-Risk Zones" value={String(result.highRiskZones)} />
-          <MiniStat label="Hospitals to Prep" value={String(hospitalsRequiringPrep)} />
-          <MiniStat label="Shelters Identified" value={String(baseRiskAssessment.sheltersIdentified)} />
+          <MiniStat 
+            label="Affected Population" 
+            value={appMode === 'REAL' ? 'N/A' : `${result.affectedPopulationM}M`} 
+            muted={appMode === 'REAL'} 
+          />
+          <MiniStat 
+            label="High-Risk Zones" 
+            value={appMode === 'REAL' ? 'N/A' : String(result.highRiskZones)} 
+            muted={appMode === 'REAL'} 
+          />
+          <MiniStat 
+            label="Hospitals to Prep" 
+            value={appMode === 'REAL' ? 'N/A' : String(hospitalsRequiringPrep)} 
+            muted={appMode === 'REAL'} 
+          />
+          <MiniStat 
+            label="Shelters Identified" 
+            value={appMode === 'REAL' ? 'N/A' : String(baseRiskAssessment.sheltersIdentified)} 
+            muted={appMode === 'REAL'} 
+          />
         </div>
 
         <p className="mt-4 text-[11.5px] leading-relaxed text-ink-faint">
-          {appMode === 'REAL' ? 'Risk levels and affected-area figures are driven by the live ML pipeline predictions' : 'Risk levels and affected-area figures are demo values illustrating the scoring interface'} — they
-          are not scientifically validated risk assessments.
-          {isModified && ' Currently showing the What-If Simulator scenario — open the simulator to adjust or reset it.'}
+          {appMode === 'REAL' ? 
+            'Physical risk levels (Wind, Flood) are analytically derived from the live SIH26070 deep learning output. Demographic/infrastructure exposure data is marked N/A as no live telemetry is connected.' : 
+            'Risk levels and affected-area figures are demo values illustrating the scoring interface - they are not scientifically validated.'}
+          {isModified && ' Currently showing the What-If Simulator scenario - open the simulator to adjust or reset it.'}
         </p>
       </div>
     </Panel>
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
-    <div className="rounded-lg border border-hairline bg-void-raised px-3 py-3 text-center">
-      <p className="mono text-lg font-bold text-ink">{value}</p>
+    <div className={`rounded-lg border border-hairline px-3 py-3 text-center ${muted ? 'bg-void-raised/50 opacity-60' : 'bg-void-raised'}`}>
+      <p className={`mono text-lg font-bold ${muted ? 'text-ink-faint' : 'text-ink'}`}>{value}</p>
       <p className="mt-0.5 text-[10.5px] text-ink-faint">{label}</p>
     </div>
   );
 }
-

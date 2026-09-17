@@ -121,8 +121,33 @@ app.get('/api/data/satellite/latest', (req, res) => {
   });
 });
 
+
+// ============================================================================
+// AI INFERENCE MODULE (Proxies to local Python FastAPI)
+// ============================================================================
+app.get('/api/ai/health', async (req, res) => {
+  try {
+    const response = await axios.get('http://127.0.0.1:8001/health', { timeout: 2000 });
+    res.json(response.data);
+  } catch (err) {
+    res.status(503).json({ status: 'error', message: 'ML service unreachable' });
+  }
+});
+
+app.post('/api/ai/predict', async (req, res) => {
+  try {
+    // Forward the request body to the Python ML API
+    const response = await axios.post('http://127.0.0.1:8001/predict', req.body, { timeout: 5000 });
+    res.json(response.data);
+  } catch (err) {
+    console.error('[Node] Error communicating with ML service:', err.message);
+    res.status(500).json({ success: false, error: 'ML prediction failed', details: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`CycloneX API Server running on port ${PORT}`);
 });
+
 

@@ -22,3 +22,33 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment secrets — never commit real credentials
+.env
+.env.local
+.env.production
+.env.staging
+
+# ML model artifacts — too large / private
+*.zip
+*.pt
+*.pth
+*.ckpt
+*.pkl
+*.h5
+best_model*
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+env/
+venv/
+
+# Local utility scripts with hardcoded paths
+extract.py
+
+# Jupyter notebook outputs
+*.ipynb_checkpoints/

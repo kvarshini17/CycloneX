@@ -1,5 +1,6 @@
 import { useSimulation } from '../context/SimulationContext';
 import { Panel, PanelHeader, RiskPill } from './ui';
+import { AlertCircle } from 'lucide-react';
 
 const priorityStyle: Record<string, string> = {
   Monitor: 'text-ink-dim',
@@ -8,14 +9,23 @@ const priorityStyle: Record<string, string> = {
 };
 
 export function HospitalPreparedness() {
-  const { result, isModified } = useSimulation();
+  const { result, isModified, appMode } = useSimulation();
 
   return (
     <Panel>
       <PanelHeader
         title="Hospital Preparedness"
-        note={isModified ? 'Reflecting simulated scenario' : 'Demo data · baseline'}
+        note={isModified ? 'Reflecting simulated scenario' : (appMode === 'REAL' ? 'Live Telemetry' : 'Demo data — baseline')}
       />
+      {appMode === 'REAL' ? (
+        <div className="flex flex-col items-center justify-center p-8 text-center bg-void-raised h-full min-h-[200px]">
+          <AlertCircle size={32} className="text-ink-faint mb-3 opacity-50" />
+          <h3 className="text-sm font-semibold text-ink-dim uppercase tracking-widest mb-1">DATA UNAVAILABLE</h3>
+          <p className="text-xs text-ink-faint max-w-sm">
+            Live local hospital preparedness and capacity telemetry feeds are not connected in the current real-time environment.
+          </p>
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px] text-left text-[13px]">
           <thead>
@@ -40,6 +50,7 @@ export function HospitalPreparedness() {
           </tbody>
         </table>
       </div>
+      )}
     </Panel>
   );
 }

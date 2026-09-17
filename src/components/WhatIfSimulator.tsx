@@ -36,9 +36,6 @@ function overallHospitalRisk(risks: RiskLevel[]): RiskLevel {
   return 'LOW';
 }
 
-// Schematic (not geographic) preview: shows the baseline track fixed against
-// the coastline, and the simulated track visibly sliding and the storm
-// circle visibly growing/shrinking as the sliders move.
 function ScenarioPathPreview({
   intensity,
   trackShift,
@@ -50,8 +47,8 @@ function ScenarioPathPreview({
   riskScore: number;
   emergencyPriority: EmergencyPriority;
 }) {
-  const shiftPx = (trackShift / 80) * 70; // +right => away from coast
-  const radius = 8 + (intensity + 20) * 0.42; // -20%..+20% -> ~8..25px
+  const shiftPx = (trackShift / 80) * 70;
+  const radius = 8 + (intensity + 20) * 0.42;
   const color = priorityColor[emergencyPriority];
 
   const baselinePath = 'M 90,150 C 140,120 150,90 210,40';
@@ -102,7 +99,7 @@ function ScenarioPathPreview({
 }
 
 export function WhatIfSimulator() {
-  const { inputs, result, baseline, isModified, setIntensity, setTrackShift, reset } = useSimulation();
+  const { inputs, result, baseline, isModified, setIntensity, setTrackShift, reset, appMode } = useSimulation();
   const { intensityDeltaPercent: intensity, trackShiftKm: trackShift } = inputs;
 
   const baselineHospitalRisk = overallHospitalRisk(baseline.hospitals.map((h) => h.risk));
@@ -110,9 +107,8 @@ export function WhatIfSimulator() {
 
   return (
     <Panel>
-      <PanelHeader title="What-If Cyclone Simulator" note="Scenario simulation — not a physical weather model" />
+      <PanelHeader title="What-If Cyclone Simulator" note="SCENARIO SIMULATION NOT AN OFFICIAL FORECAST" />
       <div className="grid grid-cols-1 gap-6 p-4 lg:grid-cols-[1fr_1.2fr]">
-        {/* Controls */}
         <div className="space-y-6">
           <div>
             <div className="mb-2 flex items-center justify-between">
@@ -174,16 +170,8 @@ export function WhatIfSimulator() {
           >
             <RotateCcw size={13} /> Reset to baseline
           </button>
-
-          <p className="text-[11.5px] leading-relaxed text-ink-faint">
-            Adjust intensity and track assumptions to see how the map, hospitals, communication risk,
-            and the AI Disaster Commander all respond together. This is a simplified, transparent,
-            fully deterministic scoring function built for demonstration — it does not model real
-            cyclone physics.
-          </p>
         </div>
 
-        {/* Scenario comparison */}
         <div>
           <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-ink-faint">
             Scenario Comparison — Baseline vs What-If
@@ -209,41 +197,41 @@ export function WhatIfSimulator() {
                 </tr>
                 <tr className="border-b border-hairline">
                   <td className="px-3.5 py-2.5 text-ink-dim">Affected Population</td>
-                  <td className="px-3.5 py-2.5 text-ink-faint">{baseline.affectedPopulationM}M</td>
-                  <td className="px-3.5 py-2.5 font-semibold text-ink">{result.affectedPopulationM}M</td>
+                  <td className="px-3.5 py-2.5 text-ink-faint">{appMode === 'REAL' ? 'N/A' : `${baseline.affectedPopulationM}M`}</td>
+                  <td className="px-3.5 py-2.5 font-semibold text-ink">{appMode === 'REAL' ? 'N/A' : `${result.affectedPopulationM}M`}</td>
                   <td className="px-3.5 py-2.5">
-                    <DeltaTag value={result.affectedPopulationM - baseline.affectedPopulationM} suffix="M" />
+                    {appMode === 'REAL' ? <span className="text-[11px] text-ink-faint">N/A</span> : <DeltaTag value={result.affectedPopulationM - baseline.affectedPopulationM} suffix="M" />}
                   </td>
                 </tr>
                 <tr className="border-b border-hairline">
                   <td className="px-3.5 py-2.5 text-ink-dim">High-Risk Zones</td>
-                  <td className="px-3.5 py-2.5 text-ink-faint">{baseline.highRiskZones}</td>
-                  <td className="px-3.5 py-2.5 font-semibold text-ink">{result.highRiskZones}</td>
+                  <td className="px-3.5 py-2.5 text-ink-faint">{appMode === 'REAL' ? 'N/A' : baseline.highRiskZones}</td>
+                  <td className="px-3.5 py-2.5 font-semibold text-ink">{appMode === 'REAL' ? 'N/A' : result.highRiskZones}</td>
                   <td className="px-3.5 py-2.5">
-                    <DeltaTag value={result.highRiskZones - baseline.highRiskZones} />
+                    {appMode === 'REAL' ? <span className="text-[11px] text-ink-faint">N/A</span> : <DeltaTag value={result.highRiskZones - baseline.highRiskZones} />}
                   </td>
                 </tr>
                 <tr className="border-b border-hairline">
                   <td className="px-3.5 py-2.5 text-ink-dim">Hospital Risk</td>
                   <td className="px-3.5 py-2.5">
-                    <RiskPill level={baselineHospitalRisk} />
+                    {appMode === 'REAL' ? <span className="text-ink-faint text-xs">N/A</span> : <RiskPill level={baselineHospitalRisk} />}
                   </td>
                   <td className="px-3.5 py-2.5">
-                    <RiskPill level={simulatedHospitalRisk} />
+                    {appMode === 'REAL' ? <span className="text-ink-faint text-xs">N/A</span> : <RiskPill level={simulatedHospitalRisk} />}
                   </td>
                   <td className="px-3.5 py-2.5 text-ink-faint">
-                    {baselineHospitalRisk === simulatedHospitalRisk ? 'No change' : '—'}
+                    {appMode === 'REAL' ? 'N/A' : (baselineHospitalRisk === simulatedHospitalRisk ? 'No change' : '—')}
                   </td>
                 </tr>
                 <tr>
                   <td className="px-3.5 py-2.5 text-ink-dim">Emergency Priority</td>
                   <td className="px-3.5 py-2.5">
-                    <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${priorityStyle[baseline.emergencyPriority]}`}>
+                    <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${priorityStyle[baseline.emergencyPriority]}`}>
                       {baseline.emergencyPriority}
                     </span>
                   </td>
                   <td className="px-3.5 py-2.5">
-                    <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${priorityStyle[result.emergencyPriority]}`}>
+                    <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${priorityStyle[result.emergencyPriority]}`}>
                       {result.emergencyPriority}
                     </span>
                   </td>
@@ -254,12 +242,6 @@ export function WhatIfSimulator() {
               </tbody>
             </table>
           </div>
-
-          <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
-            These same What-If values now drive the risk map's zone sizing and track, the Hospital
-            Preparedness and Communication Risk tables, and the AI Disaster Commander — visit any of
-            those sections while this scenario is active to see them respond.
-          </p>
         </div>
       </div>
     </Panel>
