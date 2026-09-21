@@ -1,334 +1,176 @@
 ﻿# CycloneX
 
-**AI-Powered Cyclone Intelligence & Emergency Decision-Support System**
+AI-Powered Cyclone Intelligence & Emergency Decision-Support System
+
+**Smart India Hackathon 2026**
+**Problem Statement ID:** SIH26070
+**Theme:** Disaster Management
+**Category:** Software
+**Team:** The Apex Crew
 
 ---
 
-## SIH Problem Statement
+## 1. SIH Problem Statement
+"To develop an Artificial Intelligence (AI) / Machine Learning (ML) based system for identification, classification, and prediction of different tropical cyclone patterns using multi-source satellite data."
 
-**SIH26070** — AI/ML-based identification, classification and prediction of tropical cyclone patterns using multi-source satellite data.
+## 2. Problem Understanding
+Tropical cyclones are highly complex meteorological phenomena. Traditional forecasting relies on human interpretation of satellite imagery or computationally expensive numerical weather prediction (NWP) models. The core challenge is synthesizing heterogeneous, high-dimensional multi-source data (satellite infrared, visible, water vapour bands, alongside marine weather, SST, and atmospheric parameters) into a cohesive, fast, and actionable predictive pipeline for disaster management authorities.
 
-Competition: Smart India Hackathon 2026
+## 3. Proposed Solution
+CycloneX is an end-to-end intelligence and decision-support platform. It automatically ingests data from diverse meteorological sources, fuses them into a unified feature vector, runs it through an evaluation pipeline, and translates meteorological outputs into actionable emergency protocols. It bridges the gap between raw scientific data and on-the-ground disaster response.
 
----
+## 4. Features
+- **Interactive Map:** Leaflet-based geographic visualization. (✅ Implemented)
+- **Multi-Source Data:** Ingestion of satellite imagery alongside marine weather observations. (✅ Implemented)
+- **Satellite Imagery:** Playback and analysis of multi-band satellite data. (✅ Implemented)
+- **Weather Analysis:** Live wind speed, pressure, temperature, and humidity. (✅ Implemented)
+- **Visual Prediction:** Area charts predicting track and intensity. (✅ Implemented)
+- **Risk Assessment:** Dynamic scoring of localized risks. (✅ Implemented)
+- **What-If Simulator:** Interactive controls to adjust hypothetical scenarios. (✅ Implemented)
+- **Emergency Intelligence:** Decision-support triage recommendations. (✅ Implemented)
+- **REAL DATA vs DEMO REPLAY modes.** (✅ Implemented)
 
-## Overview
+## 5. Multi-Source Intelligence
+CycloneX fuses data from multiple domains: satellite observations for structural features, atmospheric conditions (wind, pressure) for ground truth intensity, ocean conditions (SST) as the thermodynamic driver, and historical analogs. This multi-modal approach creates a 19-dimensional "Fused Feature Vector" that provides higher confidence estimates than any single source.
 
-CycloneX is a prototype cyclone intelligence and emergency decision-support system that demonstrates an end-to-end pipeline from multi-source data ingestion through AI/ML prediction to geospatial risk visualization and emergency response planning.
+## 6. Satellite Data
+- **Provider:** NASA GIBS (Global Imagery Browse Services)
+- **Products:** Terra/MODIS, Aqua/MODIS
+- **Purpose:** Cloud-top temperature extraction, eye definition assessment, and visual monitoring.
+- **Status:** Consumed via historical replay fetch mechanism for the Michaung 2023 case study, overlaying frames dynamically within the dashboard.
 
-The system integrates:
+## 7. Historical Data
+- **Status:** (🔧 Planned) Full dynamic IBTrACS integration.
+- **Purpose:** Designed to use historical best-track data (NOAA IBTrACS) to conduct analog analysis. Currently demonstrated via static reference points in the frontend (`demoData.ts`).
 
-- Satellite-derived cloud and thermal imagery (INSAT-3DR / MOSDAC — optional)
-- Historical cyclone track data (IBTrACS format)
-- Atmospheric and weather parameters (temperature, wind shear, vorticity, humidity)
-- Ocean/SST data (Sea Surface Temperature)
-- GIS/DEM data (elevation, coastal geography)
-- AI/ML-based intensity and track prediction
-- Geospatial risk visualization
-- Emergency decision support with scenario simulation
+## 8. Weather / Environmental Data
+- **Provider:** Open-Meteo Public Weather API (Marine/Coastal query)
+- **Variables:** Wind Speed (10m), Wind Gusts, Surface Pressure, Temperature (2m), Relative Humidity.
+- **Status:** (✅ Implemented) In REAL DATA mode, the Node.js backend proxies a live request to Open-Meteo, extracting OBSERVED or near-real-time estimated parameters to feed the ML pipeline.
 
-> **Disclaimer:** All cyclone scenarios and operational values shown in the demonstration are for prototype/demo purposes unless explicitly identified as real observed data. CycloneX is a research prototype and is not an operational cyclone warning system.
+## 9. AI / ML Architecture
+*Current implementation contains a prototype model architecture; the full trained forecasting pipeline is planned/future work.*
+The repository contains a `prototypePipeline.ts` (TypeScript) acting as an architectural stand-in for the future Python-based deep learning backend. It uses deterministic heuristic algorithms to mimic a trained model and successfully models the *data contracts* required by the frontend.
 
----
+## 10. Detection
+**(🟡 Prototype / Partial)** Evaluates cloud-top minimum temperature, eye definition, and atmospheric vorticity heuristics to output a binary detection status and confidence interval. 
 
-## Core Pipeline
+## 11. Classification
+**(🟡 Prototype / Partial)** Maps wind speed and pressure deficit features against the official India Meteorological Department (IMD) intensity scale.
 
-`
-Multi-Source Data
-        ↓
-Preprocessing & Feature Extraction
-        ↓
-AI/ML Model (CyclonePredictorNet — SIH26070)
-        ↓
-Cyclone Intelligence & Classification
-        ↓
-Risk Assessment & Zone Mapping
-        ↓
-Geospatial Visualization (2D Map + 3D Globe)
-        ↓
-Emergency Decision Support
-`
+## 12. Intensity
+**(🟡 Prototype / Partial)** Estimates Rapid Intensification (RI) risk by cross-referencing Sea Surface Temperature (SST) favorability with vertical wind shear.
 
----
+## 13. Track Prediction
+**(🟡 Prototype / Partial)** Projects a 24-hour trajectory, uncertainty cone radius, and estimated landfall point based on static physics-informed baseline trajectories.
 
-## AI/ML Architecture (SIH26070 — CyclonePredictorNet)
+## 14. REAL DATA vs DEMO REPLAY
+- **REAL DATA:** Retrieves the latest live marine weather data via the Open-Meteo API. The simulation engine dynamically overrides its baseline assumptions with these live observations.
+- **DEMO REPLAY:** Replays a historical event (Cyclone Michaung, 2023) using static, pre-recorded frames and mocked weather to thoroughly demonstrate the UI during off-seasons.
 
-The core AI model is a multi-modal neural network that fuses satellite image features with historical track sequences.
+## 15. End-to-End Architecture
+```mermaid
+flowchart LR
+    A[Satellite Data] --> F[Backend Data Ingestion]
+    B[Weather Data] --> F
+    C[Historical Cases] --> F
+    F --> G[Multi-Source Fusion]
+    G --> H[Prototype ML Pipeline]
+    H --> I[Risk & Impact Assessment]
+    I --> J[What-If Simulation]
+    I --> K[Emergency Intelligence]
+```
 
-### Inputs
+## 16. Technology Stack
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons, Recharts, Leaflet/React-Leaflet.
+- **Backend:** Node.js, Express, Axios.
+- **APIs:** Open-Meteo, NASA GIBS.
 
-| Input | Shape | Description |
-|-------|-------|-------------|
-| Satellite Image | (B, 4, 201, 201) | 4-channel multi-spectral patch centred on the cyclone |
-| Historical Track | (B, 9, 5) | 9 timesteps × 5 features: [lat, lon, wind, pressure, elapsed_hours] |
+## 17. Repository Structure
+- `src/components/`: UI panels, 3D Globe/Map visualizations, What-If Simulator.
+- `src/services/`: Ingestion orchestrator, fusion engine, prototype ML pipeline.
+- `src/context/`: Global simulation context wiring real data to the Risk models.
+- `backend/`: Node.js/Express server proxying external APIs.
 
-### Architecture
+## 18. Installation
+1. Clone the repository.
+2. Run `npm install` in the root directory.
+3. Start the backend: `node backend/server.js` (runs on port 8000).
+4. Start the frontend: `npm run dev` (runs on Vite dev server).
 
-`
-Satellite Image (4-channel, 201×201)
-        ↓
-ImageEncoder
-  ├── Stem Conv (7×7, stride 2) → 32ch
-  ├── ConvBlock: 32→64 (stride 2)  + Channel Attention
-  ├── ConvBlock: 64→128 (stride 2) + Channel Attention
-  ├── ConvBlock: 128→256 (stride 2)+ Channel Attention
-  ├── ConvBlock: 256→256           + Channel Attention
-  └── Global Average Pool → 256-dim image embedding
+## 19. Environment Variables
+No strict environment variables are required for basic execution, as public unauthenticated APIs (Open-Meteo, NASA GIBS) are utilized. Future integrations (e.g., custom LLM backends) will require a `.env` configuration.
 
-Historical Track (9 steps × 5 features)
-        ↓
-TrackEncoder
-  ├── Bidirectional LSTM (64 hidden, 2 layers, dropout 0.1)
-  └── Linear projection → 128-dim track embedding
+## 20. Data Pipeline
+The `ingestionOrchestrator` fetches raw data and passes it to the `satellitePreprocessor`, which feeds the `dataFusionEngine` to create the 19-dimensional `FusedCycloneFeatureVector`.
 
-Feature Fusion
-  └── Concat [256 + 128] → 384-dim fused vector
+## 21. Cyclone Lifecycle
+The application tracks cyclones from the 'Tropical Disturbance' phase through Rapid Intensification up to 'Super Cyclonic Storm', predicting their lifecycle trajectory over a 24-48 hour horizon.
 
-Shared MLP
-  ├── Linear(384 → 256) + LayerNorm + GELU + Dropout(0.2)
-  └── Linear(256 → 128) + LayerNorm + GELU
+## 22. Risk / Impact
+The `RiskAssessmentPanel` dynamically scores localized risks (Flood, Wind, Storm Surge, Infrastructure) by applying mathematical risk modifiers to the baseline ML predictions.
 
-Prediction Heads
-  ├── Wind Speed Head:    Linear(128 → 1)  → wind speed (km/h)
-  ├── Pressure Head:      Linear(128 → 1)  → central pressure (hPa)
-  ├── Track Head:         Linear(128 → 2)  → ΔLat, ΔLon (one-step movement)
-  └── Category Head:      Linear(128 → 7)  → 7-class cyclone intensity category
-`
+## 23. What-If Simulator
+Allows emergency managers to adjust hypothetical intensity (+/- 20%) and track shifts (coastward/seaward) to dynamically update affected population metrics and high-risk zones.
 
-### Category Classification (IMD Scale)
+## 24. Emergency Intelligence
+The **AI Disaster Commander** generates priority-ranked, localized recommendations for Evacuation, Medical, Communication, Shelter, and Logistics based on the live ML evaluation and Risk Score.
 
-| Class | Category |
-|-------|----------|
-| 0 | Depression |
-| 1 | Deep Depression |
-| 2 | Cyclonic Storm |
-| 3 | Severe Cyclonic Storm |
-| 4 | Very Severe Cyclonic Storm |
-| 5 | Extremely Severe Cyclonic Storm |
-| 6 | Super Cyclonic Storm |
+## 25. Notifications
+The UI includes a `StatusCards` system and top-bar connectivity banners alerting the user to real-time data ingestion successes, offline fallbacks, and shifting risk priorities.
 
-### Implementation Notes
+## 26. Validation
+System components are architected to be validated against historical Best-Track (IBTrACS) datasets. Current UI values for the DEMO mode are validated against the real metrics of Cyclone Michaung (Dec 2023).
 
-- Trained on multi-source cyclone data using PyTorch
-- Channel Attention gates applied to each convolutional block
-- Bidirectional LSTM captures both forward and backward temporal dependencies in the track sequence
-- Checkpoint: est_model.zip (loaded via MODEL_PATH environment variable)
-- Inference device: CPU (CUDA supported if available)
+## 27. Research & References
+Meteorological heuristics applied in the `prototypePipeline.ts` are derived from standard Dvorak technique principles and IMD categorization metrics.
 
----
+## 28. Innovation
+By combining a dynamic Risk Simulator with an AI Disaster Commander that scales perfectly with live atmospheric data ingestion, CycloneX transforms theoretical cyclone ML predictions into immediate disaster-response logistics.
 
-## Technology Stack
+## 29. SIH Requirement Mapping
+- **Identification:** Satellite preprocessing module (NASA GIBS).
+- **Classification:** IMD stage mapping in the prototype pipeline.
+- **Prediction:** Fused feature vector driving the trajectory/intensity module.
 
-### Frontend
-| Component | Technology |
-|-----------|-----------|
-| Framework | React 19 + TypeScript |
-| Build Tool | Vite 8 |
-| 2D Map | Leaflet 1.9 + react-leaflet 5 |
-| 3D Globe | react-globe.gl 2 |
-| Icons | lucide-react |
-| Styling | Tailwind CSS 4 |
+## 30. Current Status
+The project is a fully functional architectural prototype. The frontend dashboard, backend API proxy, data fusion engine, and What-If simulator are completely implemented. 
 
-### Backend
-| Component | Technology |
-|-----------|-----------|
-| API Gateway | Node.js + Express 5 |
-| HTTP Client | Axios |
-| Port | 8000 |
+## 31. Limitations
+- ML models are currently deterministic prototypes, not trained neural networks.
+- Satellite ingestion is currently limited to the Michaung case study for visual demonstration.
+- Real data relies on Open-Meteo point-forecasts rather than raw geospatial grids.
 
-### AI/ML Service
-| Component | Technology |
-|-----------|-----------|
-| Framework | PyTorch 2.3.1 |
-| API Server | FastAPI + Uvicorn |
-| Data Validation | Pydantic 2 |
-| Port | 8001 |
+## 32. Future Scope
+- Implementation of a PyTorch/TensorFlow backend for deep learning inference.
+- Live integration with INSAT-3DR / MOSDAC data streams.
+- Live LLM API integration for the Disaster Commander panel.
 
-### Data Sources
-| Source | Usage |
-|--------|-------|
-| INSAT-3DR / MOSDAC | Satellite IR imagery (optional — requires credentials) |
-| NASA GIBS / MODIS | Historical satellite demo visualization |
-| IBTrACS | Historical cyclone track dataset |
-| Open-Meteo | Live weather data (no API key required) |
+## 36. Cloud Deployment Architecture
+The CycloneX prototype is fully cloud-deployed for SIH 2026 judging:
+- **Frontend (Vercel):** The React/Vite SPA is hosted on Vercel's global edge network.
+- **Backend API (Render):** The Node.js/Express ingestion server is deployed as a Render Web Service.
+- **Data Flow:** The Vercel frontend securely proxies live Open-Meteo and NASA GIBS data requests through the Render backend API, bypassing browser CORS restrictions and offloading payload normalization.
+## 33. Disclaimer
+CycloneX is a hackathon prototype. Risk levels, predictions, and affected-area figures are generated for demonstration purposes and do NOT represent official meteorological forecasts or scientifically validated risk assessments. Final decisions must remain with authorized disaster-management officials.
 
----
+## 34. Data Attribution
+- Weather Data: Open-Meteo
+- Satellite Imagery: NASA GIBS (EOSDIS)
 
-## Dashboard Features
-
-| Feature | Description |
-|---------|-------------|
-| **Command Dashboard** | Central overview — status cards, AI outputs, alerts |
-| **Multi-Source Intelligence** | Satellite, weather, ocean, GIS data integration panels |
-| **Cyclone Analysis** | Track history, intensity trends, atmospheric parameters |
-| **AI Prediction** | SIH26070 model outputs — wind, pressure, movement, category |
-| **Risk Assessment** | Geospatial risk zone mapping with population exposure |
-| **What-If Simulator** | Interactive intensity and track deviation scenario planning |
-| **Emergency Intelligence** | Priority alerts, resource requirements, response timelines |
-| **AI Disaster Commander** | Decision-support overlay for emergency operations |
-| **2D Map** | Leaflet/OpenStreetMap with cyclone track, risk zones, replay |
-| **3D Globe** | react-globe.gl with cyclone path and geographic context |
-| **Satellite Visualization** | Historical/demo IR satellite layer with Dvorak color ramp |
-| **Demo Replay** | Step through historical cyclone track with synchronized satellite frames |
+## 35. Demo Instructions
+1. Launch both the backend server and frontend Vite app.
+2. Toggle the mode switch in the top bar to **DEMO REPLAY** to view the timeline playback of Cyclone Michaung.
+3. Toggle the switch to **REAL DATA** to trigger a live Open-Meteo fetch and watch the Risk Assessment and AI Disaster Commander dynamically adjust to current Bay of Bengal conditions.
+4. Open the **What-If Simulator** and adjust the track shift and intensity to observe real-time risk escalation.
 
 ---
 
-## Satellite Data
+<div align="center">
+  <h3>🌪️ CycloneX</h3>
+  <b>Built with passion for Smart India Hackathon 2026</b><br>
+  <i>Empowering Disaster Management Authorities with Multi-Source Intelligence.</i><br><br>
+  <b>Team: The Apex Crew</b><br>
+  <sub>Problem Statement: SIH26070</sub>
+</div>
 
-The current demonstration uses **historical and simulated satellite visualization**:
-
-- **Historical frames**: NASA GIBS (Terra/Aqua MODIS) imagery for Cyclone Michaung (December 2023)
-- **Synthetic IR overlay**: Canvas-rendered brightness temperature pattern (Dvorak IR color ramp: blue=cold deep convection → red=warm/clear)
-
-**MOSDAC/INSAT-3DR integration** is implemented in the backend (ackend/server.js) but requires valid MOSDAC credentials. Without credentials, the application operates fully in DEMO mode.
-
-> The current demonstration uses simulated/historical data and is **not** an operational cyclone warning system.
-
----
-
-## Running Locally
-
-### Prerequisites
-
-- Node.js 18+
-- Python 3.10+
-- PyTorch 2.3.1 (pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu)
-
-### 1 — Frontend
-
-`ash
-npm install
-npm run dev
-# Opens at http://localhost:5173
-`
-
-### 2 — Backend API Gateway
-
-`ash
-node backend/server.js
-# Runs at http://localhost:8000
-`
-
-Or using the npm script:
-
-`ash
-npm run start:api
-`
-
-### 3 — Python ML Service
-
-`ash
-cd backend/ml
-pip install -r requirements.txt
-
-# Set path to the trained model checkpoint
-export MODEL_PATH=/path/to/best_model.zip    # Linux/macOS
-set MODEL_PATH=C:\path\to\best_model.zip     # Windows
-
-python api.py
-# Runs at http://127.0.0.1:8001
-`
-
-> The Python ML service requires the trained est_model.zip checkpoint. Without it, the AI prediction cards show OFFLINE status. The rest of the application works normally.
-
-### Start Order
-
-Start services in this order:
-1. Python ML service (port 8001)
-2. Node backend (port 8000)
-3. Frontend dev server (port 5173)
-
----
-
-## Environment Variables
-
-Create a .env file in the project root (never commit this file):
-
-`env
-# Path to trained SIH26070 model checkpoint
-MODEL_PATH=C:/path/to/best_model.zip
-
-# MOSDAC credentials (optional — for real INSAT-3DR satellite data)
-# Register at https://mosdac.gov.in
-MOSDAC_USERNAME=
-MOSDAC_PASSWORD=
-MOSDAC_BASE_URL=https://mosdac.gov.in
-MOSDAC_DATASET_ID=3RIMG_L1B_STD
-
-# Backend configuration
-PORT=8000
-FRONTEND_ORIGIN=http://localhost:5173
-`
-
-See .env.example for a template.
-
----
-
-## Project Structure
-
-`
-CycloneX/
-├── src/                          # React frontend
-│   ├── components/               # UI components
-│   │   ├── CycloneMap.tsx        # 2D Leaflet map with tracks, risk zones, replay
-│   │   ├── GlobeMap.tsx          # 3D react-globe.gl visualization
-│   │   ├── PredictionPanel.tsx   # AI prediction panel (observed vs SIH26070)
-│   │   ├── StatusCards.tsx       # Dashboard status cards + AI output cards
-│   │   ├── RiskAssessment.tsx    # Risk zone table and exposure analysis
-│   │   ├── WhatIfSimulator.tsx   # Interactive scenario simulator
-│   │   └── ...                   # Other dashboard components
-│   ├── context/
-│   │   └── SimulationContext.tsx # Shared state — simulation, AI data, app mode
-│   ├── data/
-│   │   └── demoData.ts           # Demo scenario: Cyclone Varun (fictional)
-│   ├── services/
-│   │   └── ingestion/            # Data ingestion services (satellite, weather)
-│   ├── utils/
-│   │   └── simulation.ts         # What-If simulation engine
-│   └── types/                    # TypeScript type definitions
-│
-├── backend/
-│   ├── server.js                 # Node.js/Express API gateway (port 8000)
-│   └── ml/
-│       ├── api.py                # FastAPI ML inference service (port 8001)
-│       ├── predictor.py          # CyclonePredictorNet architecture (SIH26070)
-│       └── requirements.txt      # Python dependencies
-│
-├── .env.example                  # Environment variable template
-├── .gitignore
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── README.md
-`
-
----
-
-## Demo Scenario
-
-The default demonstration uses **Cyclone Varun** — a fictional cyclone scenario in the Bay of Bengal used solely for illustrating the CycloneX interface and pipeline. Historical replay frames are derived from Cyclone Michaung (December 2023) data via NASA GIBS.
-
-> All cyclone scenarios and operational values shown in the demonstration are for prototype/demo purposes unless explicitly identified as real observed data.
-
----
-
-## AI Model Disclaimer
-
-The SIH26070 AI model (CyclonePredictorNet) is a **prototype decision-support model** developed for the Smart India Hackathon 2026. It should not be treated as an official meteorological warning system. Predictions are for research and demonstration only.
-
----
-
-## Security Notes
-
-The following files are excluded from version control (.gitignore):
-
-- .env — credentials and secrets
-- est_model.zip, *.pt, *.pth — model checkpoints (large/private)
-- mdapi.zip, mdapi.py — MOSDAC API reference (not for redistribution)
-- ackend/data/ — downloaded satellite cache
-
----
-
-## License
-
-Developed for Smart India Hackathon 2026 — SIH26070.
