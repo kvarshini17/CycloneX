@@ -594,6 +594,143 @@ app.post('/api/real/analyze', async (req, res) => {
   });
 });
 
+// 4. POST /api/real/scenario — Unified Scenario Shift & Asset Impact Engine
+app.post('/api/real/scenario', (req, res) => {
+  const {
+    baselineTrack,
+    trackShiftKm = 0,
+    intensityDeltaPercent = 0,
+    cycloneName = 'Selected System'
+  } = req.body;
+
+  if (!Array.isArray(baselineTrack) || baselineTrack.length === 0) {
+    return res.status(400).json({ success: false, error: 'baselineTrack array is required' });
+  }
+
+  // Shift lat/lon: 1 deg lat ~= 111 km, 1 deg lon ~= 111 km * cos(lat)
+  const shiftLatDeg = (trackShiftKm * 0.4) / 111;
+  const shiftLonDeg = (trackShiftKm * 0.8) / 111;
+
+  const scenarioTrack = baselineTrack.map(pt => {
+    // If it's a historical/observed point, keep it fixed. Only shift future/projected points
+    if (pt.kind === 'past' || pt.kind === 'observed') {
+      return { ...pt };
+    }
+    const newLat = Number((pt.lat + shiftLatDeg).toFixed(3));
+    const newLon = Number((pt.lon + shiftLonDeg).toFixed(3));
+    const baseWind = pt.windKmh || 80;
+    const basePres = pt.pressureHpa || 990;
+    const factor = 1 + (intensityDeltaPercent / 100);
+    const newWind = Math.round(baseWind * factor);
+    const newPres = Math.round(basePres - (intensityDeltaPercent * 0.35));
+
+    return {
+      ...pt,
+      lat: newLat,
+      lon: newLon,
+      windKmh: newWind,
+      pressureHpa: newPres
+    };
+  });
+
+  // Calculate Indian Coastal Ports & State exposure
+  const INDIAN_PORTS = [
+    { name: 'Haldia Port', state: 'West Bengal', lat: 22.021, lon: 88.061, trafficMT: 48.6, type: 'MAJOR' },
+    { name: 'Paradip Port', state: 'Odisha', lat: 20.264, lon: 86.671, trafficMT: 135.3, type: 'MAJOR' },
+    { name: 'Dhamra Port', state: 'Odisha', lat: 20.803, lon: 86.974, trafficMT: 35.0, type: 'INTERMEDIATE' },
+    { name: 'Gopalpur Port', state: 'Odisha', lat: 19.308, lon: 84.965, trafficMT: 12.0, type: 'INTERMEDIATE' },
+    { name: 'Visakhapatnam Port', state: 'Andhra Pradesh', lat: 17.686, lon: 83.218, trafficMT: 73.7, type: 'MAJOR' },
+    { name: 'Gangavaram Port', state: 'Andhra Pradesh', lat: 17.625, lon: 83.235, trafficMT: 38.0, type: 'INTERMEDIATE' },
+    { name: 'Kakinada Port', state: 'Andhra Pradesh', lat: 16.983, lon: 82.283, trafficMT: 20.5, type: 'INTERMEDIATE' },
+    { name: 'Krishnapatnam Port', state: 'Andhra Pradesh', lat: 14.254, lon: 80.124, trafficMT: 50.0, type: 'INTERMEDIATE' },
+    { name: 'Kamarajar (Ennore) Port', state: 'Tamil Nadu', lat: 13.256, lon: 80.332, trafficMT: 43.5, type: 'MAJOR' },
+    { name: 'Chennai Port', state: 'Tamil Nadu', lat: 13.084, lon: 80.297, trafficMT: 48.0, type: 'MAJOR' },
+    { name: 'Tuticorin (VOC) Port', state: 'Tamil Nadu', lat: 8.751, lon: 78.188, trafficMT: 38.0, type: 'MAJOR' },
+    { name: 'Cochin Port', state: 'Kerala', lat: 9.965, lon: 76.267, trafficMT: 35.2, type: 'MAJOR' },
+    { name: 'New Mangalore Port', state: 'Karnataka', lat: 12.928, lon: 74.819, trafficMT: 41.4, type: 'MAJOR' },
+    { name: 'Mormugao Port', state: 'Goa', lat: 15.412, lon: 73.801, trafficMT: 20.6, type: 'MAJOR' },
+    { name: 'JNPT (Nhava Sheva)', state: 'Maharashtra', lat: 18.949, lon: 72.951, trafficMT: 76.0, type: 'MAJOR' },
+    { name: 'Mumbai Port Trust', state: 'Maharashtra', lat: 18.945, lon: 72.842, trafficMT: 63.6, type: 'MAJOR' },
+    { name: 'Mundra Port', state: 'Gujarat', lat: 22.744, lon: 69.704, trafficMT: 155.0, type: 'MAJOR' },
+    { name: 'Deendayal (Kandla) Port', state: 'Gujarat', lat: 23.003, lon: 70.219, trafficMT: 137.5, type: 'MAJOR' }
+  ];
+
+  function evaluateExposure(track) {
+    const exposed = [];
+    const states = new Set();
+    INDIAN_PORTS.forEach(port => {
+      let minD = Infinity;
+      track.forEach(pt => {
+        const d = haversineDistanceKm(pt.lat, pt.lon, port.lat, port.lon);
+        if (d < minD) minD = Math.round(d);
+      });
+      if (minD <= 350) {
+        exposed.push({ ...port, distanceKm: minD });
+        states.add(port.state);
+      }
+    });
+    exposed.sort((a, b) => a.distanceKm - b.distanceKm);
+    return {
+      ports: exposed,
+      states: Array.from(states),
+      totalTrafficMT: exposed.reduce((acc, p) => acc + p.trafficMT, 0)
+    };
+  }
+
+  const baselineExposure = evaluateExposure(baselineTrack);
+  const scenarioExposure = evaluateExposure(scenarioTrack);
+
+  // Determine what changed
+  const newlyExposedPorts = scenarioExposure.ports.filter(sp => !baselineExposure.ports.some(bp => bp.name === sp.name));
+  const sparedPorts = baselineExposure.ports.filter(bp => !scenarioExposure.ports.some(sp => sp.name === bp.name));
+  
+  const newlyExposedStates = scenarioExposure.states.filter(s => !baselineExposure.states.includes(s));
+  const sparedStates = baselineExposure.states.filter(s => !scenarioExposure.states.includes(s));
+
+  // Risk & Emergency Shift Assessment
+  const baselineMaxWind = Math.max(...baselineTrack.map(p => p.windKmh || 0));
+  const scenarioMaxWind = Math.max(...scenarioTrack.map(p => p.windKmh || 0));
+
+  const changesSummary = [];
+  if (trackShiftKm > 0) {
+    changesSummary.push(`Track shifted eastward / inland by +${trackShiftKm} km.`);
+  } else if (trackShiftKm < 0) {
+    changesSummary.push(`Track shifted westward / offshore by ${trackShiftKm} km.`);
+  }
+  if (intensityDeltaPercent !== 0) {
+    changesSummary.push(`Intensity changed by ${intensityDeltaPercent > 0 ? '+' : ''}${intensityDeltaPercent}% (Peak: ${scenarioMaxWind} km/h vs Baseline: ${baselineMaxWind} km/h).`);
+  }
+  if (newlyExposedStates.length > 0) {
+    changesSummary.push(`⚠️ NEW REGIONS AT RISK: ${newlyExposedStates.join(', ')}.`);
+  }
+  if (sparedStates.length > 0) {
+    changesSummary.push(`✅ REDUCED THREAT FOR: ${sparedStates.join(', ')}.`);
+  }
+  if (newlyExposedPorts.length > 0) {
+    changesSummary.push(`Critical maritime alerts issued for: ${newlyExposedPorts.map(p => p.name).join(', ')}.`);
+  }
+
+  return res.json({
+    success: true,
+    cycloneName,
+    trackShiftKm,
+    intensityDeltaPercent,
+    scenarioTrack,
+    baselineExposure,
+    scenarioExposure,
+    diff: {
+      newlyExposedPorts,
+      sparedPorts,
+      newlyExposedStates,
+      sparedStates,
+      trafficDeltaMT: Number((scenarioExposure.totalTrafficMT - baselineExposure.totalTrafficMT).toFixed(1)),
+      windDeltaKmh: scenarioMaxWind - baselineMaxWind,
+      changesSummary
+    },
+    disclaimer: 'AI-assisted decision support. Follow official government warnings and advisories.'
+  });
+});
+
 // 4. GET /api/real/status — Overall Real Data Mode Status
 app.get('/api/real/status', async (req, res) => {
   const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8001';

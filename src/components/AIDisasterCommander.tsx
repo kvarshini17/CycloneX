@@ -16,7 +16,7 @@ function getPriorityText(risk: RiskLevel) {
 }
 
 export function AIDisasterCommander({ compact: _compact = false }: { compact?: boolean }) {
-  const { result, isModified, appMode, aiData } = useSimulation();
+  const { result, isModified, appMode, aiData, realScenarioResult } = useSimulation();
   
   // Use real AI data if available, otherwise fallback to simulated result
   const windSource = (appMode === 'REAL' && aiData) ? aiData.wind : result.windKmh;
@@ -64,7 +64,7 @@ export function AIDisasterCommander({ compact: _compact = false }: { compact?: b
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="mono rounded bg-void px-1.5 py-0.5 text-[10.5px] font-semibold text-signal">P1</span>
-                <p className="text-[13.5px] font-medium text-ink">Evacuation Priority</p>
+                <p className="text-[13.5px] font-medium text-ink">Evacuation & Sheltering Priority</p>
               </div>
               <p className="mt-1 text-[12px] leading-relaxed text-ink-dim">Based on {windSource.toFixed(1)} km/h wind projection: {getPriorityText(evacRisk)}</p>
             </div>
@@ -75,17 +75,34 @@ export function AIDisasterCommander({ compact: _compact = false }: { compact?: b
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="mono rounded bg-void px-1.5 py-0.5 text-[10.5px] font-semibold text-signal">P2</span>
-                <p className="text-[13.5px] font-medium text-ink">Critical Infrastructure</p>
+                <p className="text-[13.5px] font-medium text-ink">Critical Coastal & Maritime Assets</p>
               </div>
               <p className="mt-1 text-[12px] leading-relaxed text-ink-dim">Based on physical damage modeling: {getPriorityText(infraRisk)}</p>
             </div>
           </div>
         </div>
 
+        {/* Dynamic Scenario Priority Updates */}
+        {realScenarioResult?.diff?.changesSummary && realScenarioResult.diff.changesSummary.length > 0 && (
+          <div className="mt-3 rounded-lg border border-warn/30 bg-warn/10 p-3 space-y-1.5">
+            <p className="text-[11px] font-bold text-warn uppercase tracking-wider">
+              ⚡ Action Adjustments from Active Scenario:
+            </p>
+            <ul className="text-[11.5px] text-ink space-y-1">
+              {realScenarioResult.diff.changesSummary.map((s: string, idx: number) => (
+                <li key={idx} className="flex items-start gap-1.5">
+                  <span className="text-warn">▸</span>
+                  <span>{s}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-warn/25 bg-warn/5 px-3.5 py-3">
           <AlertTriangle size={15} className="mt-0.5 shrink-0 text-warn" />
           <p className="text-[11.5px] leading-relaxed text-warn/90 font-medium">
-            AI-assisted decision support — NOT an official government warning.
+            AI-assisted decision support. Follow official government warnings and advisories.
           </p>
         </div>
       </div>

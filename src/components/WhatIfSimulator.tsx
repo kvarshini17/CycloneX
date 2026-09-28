@@ -99,7 +99,19 @@ function ScenarioPathPreview({
 }
 
 export function WhatIfSimulator() {
-  const { inputs, result, baseline, isModified, setIntensity, setTrackShift, reset, appMode } = useSimulation();
+  const {
+    inputs,
+    result,
+    baseline,
+    isModified,
+    setIntensity,
+    setTrackShift,
+    reset,
+    appMode,
+    realScenarioResult,
+    isScenarioRunning,
+    runScenarioAnalysis
+  } = useSimulation();
   const { intensityDeltaPercent: intensity, trackShiftKm: trackShift } = inputs;
 
   const baselineHospitalRisk = overallHospitalRisk(baseline.hospitals.map((h) => h.risk));
@@ -163,85 +175,140 @@ export function WhatIfSimulator() {
             emergencyPriority={result.emergencyPriority}
           />
 
-          <button
-            onClick={reset}
-            disabled={!isModified}
-            className="flex items-center gap-1.5 rounded-md border border-hairline-strong px-3 py-1.5 text-[12px] text-ink-dim hover:bg-panel-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <RotateCcw size={13} /> Reset to baseline
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => runScenarioAnalysis(trackShift, intensity)}
+              className="flex items-center gap-1.5 rounded-md bg-signal px-3.5 py-1.5 text-[12px] font-semibold text-void shadow hover:opacity-90 transition-opacity"
+            >
+              {isScenarioRunning ? 'Recalculating Impact...' : '▶ Run Scenario Simulation'}
+            </button>
+            <button
+              onClick={reset}
+              disabled={!isModified}
+              className="flex items-center gap-1.5 rounded-md border border-hairline-strong px-3 py-1.5 text-[12px] text-ink-dim hover:bg-panel-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <RotateCcw size={13} /> Reset
+            </button>
+          </div>
         </div>
 
-        <div>
-          <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-ink-faint">
-            Scenario Comparison — Baseline vs What-If
-          </p>
-          <div className="overflow-hidden rounded-lg border border-hairline">
-            <table className="w-full text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-hairline bg-panel-raised text-[11px] uppercase tracking-wide text-ink-faint">
-                  <th className="px-3.5 py-2.5 font-medium">Metric</th>
-                  <th className="px-3.5 py-2.5 font-medium">Baseline</th>
-                  <th className="px-3.5 py-2.5 font-medium">What-If</th>
-                  <th className="px-3.5 py-2.5 font-medium">Δ</th>
-                </tr>
-              </thead>
-              <tbody className="mono">
-                <tr className="border-b border-hairline">
-                  <td className="px-3.5 py-2.5 text-ink-dim">Risk Score</td>
-                  <td className="px-3.5 py-2.5 text-ink-faint">{baseline.riskScore}</td>
-                  <td className="px-3.5 py-2.5 font-semibold text-ink">{result.riskScore}</td>
-                  <td className="px-3.5 py-2.5">
-                    <DeltaTag value={result.riskScore - baseline.riskScore} />
-                  </td>
-                </tr>
-                <tr className="border-b border-hairline">
-                  <td className="px-3.5 py-2.5 text-ink-dim">Affected Population</td>
-                  <td className="px-3.5 py-2.5 text-ink-faint">{appMode === 'REAL' ? 'N/A' : `${baseline.affectedPopulationM}M`}</td>
-                  <td className="px-3.5 py-2.5 font-semibold text-ink">{appMode === 'REAL' ? 'N/A' : `${result.affectedPopulationM}M`}</td>
-                  <td className="px-3.5 py-2.5">
-                    {appMode === 'REAL' ? <span className="text-[11px] text-ink-faint">N/A</span> : <DeltaTag value={result.affectedPopulationM - baseline.affectedPopulationM} suffix="M" />}
-                  </td>
-                </tr>
-                <tr className="border-b border-hairline">
-                  <td className="px-3.5 py-2.5 text-ink-dim">High-Risk Zones</td>
-                  <td className="px-3.5 py-2.5 text-ink-faint">{appMode === 'REAL' ? 'N/A' : baseline.highRiskZones}</td>
-                  <td className="px-3.5 py-2.5 font-semibold text-ink">{appMode === 'REAL' ? 'N/A' : result.highRiskZones}</td>
-                  <td className="px-3.5 py-2.5">
-                    {appMode === 'REAL' ? <span className="text-[11px] text-ink-faint">N/A</span> : <DeltaTag value={result.highRiskZones - baseline.highRiskZones} />}
-                  </td>
-                </tr>
-                <tr className="border-b border-hairline">
-                  <td className="px-3.5 py-2.5 text-ink-dim">Hospital Risk</td>
-                  <td className="px-3.5 py-2.5">
-                    {appMode === 'REAL' ? <span className="text-ink-faint text-xs">N/A</span> : <RiskPill level={baselineHospitalRisk} />}
-                  </td>
-                  <td className="px-3.5 py-2.5">
-                    {appMode === 'REAL' ? <span className="text-ink-faint text-xs">N/A</span> : <RiskPill level={simulatedHospitalRisk} />}
-                  </td>
-                  <td className="px-3.5 py-2.5 text-ink-faint">
-                    {appMode === 'REAL' ? 'N/A' : (baselineHospitalRisk === simulatedHospitalRisk ? 'No change' : '—')}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-3.5 py-2.5 text-ink-dim">Emergency Priority</td>
-                  <td className="px-3.5 py-2.5">
-                    <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${priorityStyle[baseline.emergencyPriority]}`}>
-                      {baseline.emergencyPriority}
-                    </span>
-                  </td>
-                  <td className="px-3.5 py-2.5">
-                    <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${priorityStyle[result.emergencyPriority]}`}>
-                      {result.emergencyPriority}
-                    </span>
-                  </td>
-                  <td className="px-3.5 py-2.5 text-ink-faint">
-                    {baseline.emergencyPriority === result.emergencyPriority ? 'No change' : '—'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        <div className="space-y-4">
+          <div>
+            <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+              Scenario Comparison — Baseline vs What-If
+            </p>
+            <div className="overflow-hidden rounded-lg border border-hairline">
+              <table className="w-full text-left text-[13px]">
+                <thead>
+                  <tr className="border-b border-hairline bg-panel-raised text-[11px] uppercase tracking-wide text-ink-faint">
+                    <th className="px-3.5 py-2.5 font-medium">Metric</th>
+                    <th className="px-3.5 py-2.5 font-medium">Baseline</th>
+                    <th className="px-3.5 py-2.5 font-medium">What-If</th>
+                    <th className="px-3.5 py-2.5 font-medium">Δ</th>
+                  </tr>
+                </thead>
+                <tbody className="mono">
+                  <tr className="border-b border-hairline">
+                    <td className="px-3.5 py-2.5 text-ink-dim">Risk Score</td>
+                    <td className="px-3.5 py-2.5 text-ink-faint">{baseline.riskScore}</td>
+                    <td className="px-3.5 py-2.5 font-semibold text-ink">{result.riskScore}</td>
+                    <td className="px-3.5 py-2.5">
+                      <DeltaTag value={result.riskScore - baseline.riskScore} />
+                    </td>
+                  </tr>
+                  <tr className="border-b border-hairline">
+                    <td className="px-3.5 py-2.5 text-ink-dim">Affected Population</td>
+                    <td className="px-3.5 py-2.5 text-ink-faint">{appMode === 'REAL' ? 'DATA UNAVAILABLE' : `${baseline.affectedPopulationM}M`}</td>
+                    <td className="px-3.5 py-2.5 font-semibold text-ink">{appMode === 'REAL' ? 'DATA UNAVAILABLE' : `${result.affectedPopulationM}M`}</td>
+                    <td className="px-3.5 py-2.5">
+                      {appMode === 'REAL' ? <span className="text-[11px] text-ink-faint">N/A</span> : <DeltaTag value={result.affectedPopulationM - baseline.affectedPopulationM} suffix="M" />}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-hairline">
+                    <td className="px-3.5 py-2.5 text-ink-dim">High-Risk Zones</td>
+                    <td className="px-3.5 py-2.5 text-ink-faint">{appMode === 'REAL' ? 'DATA UNAVAILABLE' : baseline.highRiskZones}</td>
+                    <td className="px-3.5 py-2.5 font-semibold text-ink">{appMode === 'REAL' ? 'DATA UNAVAILABLE' : result.highRiskZones}</td>
+                    <td className="px-3.5 py-2.5">
+                      {appMode === 'REAL' ? <span className="text-[11px] text-ink-faint">N/A</span> : <DeltaTag value={result.highRiskZones - baseline.highRiskZones} />}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-hairline">
+                    <td className="px-3.5 py-2.5 text-ink-dim">Hospital Risk</td>
+                    <td className="px-3.5 py-2.5">
+                      {appMode === 'REAL' ? <span className="text-ink-faint text-xs">DATA UNAVAILABLE</span> : <RiskPill level={baselineHospitalRisk} />}
+                    </td>
+                    <td className="px-3.5 py-2.5">
+                      {appMode === 'REAL' ? <span className="text-ink-faint text-xs">DATA UNAVAILABLE</span> : <RiskPill level={simulatedHospitalRisk} />}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-ink-faint">
+                      {appMode === 'REAL' ? 'N/A' : (baselineHospitalRisk === simulatedHospitalRisk ? 'No change' : '—')}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-3.5 py-2.5 text-ink-dim">Emergency Priority</td>
+                    <td className="px-3.5 py-2.5">
+                      <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${priorityStyle[baseline.emergencyPriority]}`}>
+                        {baseline.emergencyPriority}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-2.5">
+                      <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${priorityStyle[result.emergencyPriority]}`}>
+                        {result.emergencyPriority}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-2.5 text-ink-faint">
+                      {baseline.emergencyPriority === result.emergencyPriority ? 'No change' : '—'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          {/* Operational "WHAT CHANGED?" Banner & Indian Infrastructure Impact */}
+          {realScenarioResult && (
+            <div className="rounded-lg border border-data/30 bg-data/5 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-data flex items-center gap-1.5">
+                  ⚡ WHAT CHANGED IN THIS SCENARIO?
+                </span>
+                <span className="mono text-[10.5px] text-ink-dim">
+                  Target: {realScenarioResult.cycloneName}
+                </span>
+              </div>
+
+              {realScenarioResult.diff?.changesSummary && realScenarioResult.diff.changesSummary.length > 0 && (
+                <ul className="space-y-1 text-[12px] text-ink">
+                  {realScenarioResult.diff.changesSummary.map((item: string, i: number) => (
+                    <li key={i} className="flex items-start gap-1.5">
+                      <span className="text-data">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Exposed Indian Ports Under This Shift */}
+              {realScenarioResult.scenarioExposure?.ports && realScenarioResult.scenarioExposure.ports.length > 0 && (
+                <div className="pt-2 border-t border-hairline">
+                  <p className="text-[11px] font-semibold text-ink-dim mb-1">
+                    Exposed Indian Maritime Hubs ({realScenarioResult.scenarioExposure.ports.length} ports · {realScenarioResult.scenarioExposure.totalTrafficMT} MT/yr cargo):
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {realScenarioResult.scenarioExposure.ports.map((port: any) => (
+                      <span key={port.name} className="mono text-[10.5px] rounded bg-void-raised px-2 py-0.5 border border-hairline text-ink">
+                        ⚓ {port.name} ({port.distanceKm} km away)
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <p className="text-[11px] text-ink-faint italic text-center">
+            AI-assisted decision support. Follow official government warnings and advisories.
+          </p>
         </div>
       </div>
     </Panel>

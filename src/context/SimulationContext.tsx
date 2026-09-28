@@ -101,11 +101,18 @@ interface SimulationContextValue {
   // REAL DATA Mode Additions (Phases 2, 5, 6, 15)
   selectedLocation: { lat: number; lng: number } | null;
   setSelectedLocation: (loc: { lat: number; lng: number } | null) => void;
+  selectedCyclone: ActiveCyclone | null;
+  setSelectedCyclone: (cyclone: ActiveCyclone | null) => void;
   realAnalysis: RealLocationAnalysis | null;
   isAnalyzing: boolean;
   activeCyclones: ActiveCyclone[];
   analyzeLocation: (lat: number, lng: number) => Promise<void>;
   refreshActiveCyclones: () => Promise<void>;
+  
+  // What-If Scenario Shift Integration
+  realScenarioResult: any | null;
+  isScenarioRunning: boolean;
+  runScenarioAnalysis: (shiftKm: number, deltaInt: number) => Promise<void>;
 }
 
 const SimulationContext = createContext<SimulationContextValue | null>(null);
@@ -147,9 +154,12 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
 
   // REAL DATA Mode State & Ingestion (Phases 2, 5, 6, 15)
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedCyclone, setSelectedCyclone] = useState<ActiveCyclone | null>(null);
   const [realAnalysis, setRealAnalysis] = useState<RealLocationAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeCyclones, setActiveCyclones] = useState<ActiveCyclone[]>([]);
+  const [realScenarioResult, setRealScenarioResult] = useState<any | null>(null);
+  const [isScenarioRunning, setIsScenarioRunning] = useState(false);
 
   const refreshActiveCyclones = async () => {
     try {
@@ -159,6 +169,9 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         const data = await res.json();
         if (data.success && Array.isArray(data.cyclones)) {
           setActiveCyclones(data.cyclones);
+          if (data.cyclones.length > 0 && !selectedCyclone) {
+            setSelectedCyclone(data.cyclones[0]);
+          }
         }
       }
     } catch (err) {
@@ -179,6 +192,9 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data: RealLocationAnalysis = await res.json();
         setRealAnalysis(data);
+        if (data.matched_cyclone) {
+          setSelectedCyclone(data.matched_cyclone);
+        }
         if (data.model && data.model.status === 'ONLINE' && data.model.prediction) {
           setAiData({
             wind: data.model.prediction.predicted_wind_kmh,
@@ -199,6 +215,55 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const runScenarioAnalysis = async (shiftKm: number, deltaInt: number) => {
+    setIsScenarioRunning(true);
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+      
+      // Determine baseline track: if in REAL mode and cyclone selected, use its location + prediction
+      let baseTrack: any[] = [];
+      let stormName = 'Cyclone Varun (Demo)';
+
+      if (appMode === 'REAL' && selectedCyclone) {
+        stormName = selectedCyclone.name;
+        baseTrack = [
+          { lat: selectedCyclone.latitude - 0.5, lon: selectedCyclone.longitude - 0.5, kind: 'past', windKmh: (selectedCyclone.windKmh || 70) - 10, pressureHpa: (selectedCyclone.pressureHpa || 995) + 5 },
+          { lat: selectedCyclone.latitude, lon: selectedCyclone.longitude, kind: 'observed', windKmh: selectedCyclone.windKmh || 75, pressureHpa: selectedCyclone.pressureHpa || 990 },
+          { lat: selectedCyclone.latitude + 0.8, lon: selectedCyclone.longitude + 0.6, kind: 'future', windKmh: (selectedCyclone.windKmh || 75) + 10, pressureHpa: (selectedCyclone.pressureHpa || 990) - 5 },
+          { lat: selectedCyclone.latitude + 1.8, lon: selectedCyclone.longitude + 1.2, kind: 'future', windKmh: (selectedCyclone.windKmh || 75) + 20, pressureHpa: (selectedCyclone.pressureHpa || 990) - 12 }
+        ];
+      } else {
+        baseTrack = result.trackPoints.map(p => ({
+          lat: p.lat,
+          lon: p.lng,
+          kind: p.kind === 'forecast' ? 'future' : (p.kind === 'current' ? 'observed' : 'past'),
+          windKmh: p.windKmh,
+          pressureHpa: 980
+        }));
+      }
+
+      const res = await fetch(`${apiBase}/api/real/scenario`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baselineTrack: baseTrack,
+          trackShiftKm: shiftKm,
+          intensityDeltaPercent: deltaInt,
+          cycloneName: stormName
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setRealScenarioResult(data);
+      }
+    } catch (err) {
+      console.warn('[SimulationContext] Scenario computation failed:', err);
+    } finally {
+      setIsScenarioRunning(false);
+    }
+  };
+
   // Hard Mode Isolation: On REAL mode switch, fetch active cyclones & default coordinate
   useEffect(() => {
     if (appMode === 'REAL') {
@@ -210,6 +275,8 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       // Clear real mode state on return to DEMO to prevent state leakage
       setRealAnalysis(null);
       setSelectedLocation(null);
+      setSelectedCyclone(null);
+      setRealScenarioResult(null);
     }
   }, [appMode]);
 
@@ -293,11 +360,16 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         aiStatus,
         selectedLocation,
         setSelectedLocation,
+        selectedCyclone,
+        setSelectedCyclone,
         realAnalysis,
         isAnalyzing,
         activeCyclones,
         analyzeLocation,
-        refreshActiveCyclones
+        refreshActiveCyclones,
+        realScenarioResult,
+        isScenarioRunning,
+        runScenarioAnalysis
       }}
     >
       {children}

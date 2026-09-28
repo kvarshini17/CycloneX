@@ -5,7 +5,7 @@ import { Panel, PanelHeader, RiskPill } from './ui';
 import { Activity, Crosshair, AlertCircle, Navigation } from 'lucide-react';
 
 export function PredictionPanel() {
-  const { result, isModified, appMode, aiData, aiStatus } = useSimulation();
+  const { result, isModified, appMode, aiData, aiStatus, selectedCyclone, realAnalysis } = useSimulation();
   const rows = derivePredictionRows(result.trackPoints);
 
   const CATEGORIES = [
@@ -18,14 +18,28 @@ export function PredictionPanel() {
     'Super Cyclonic Storm (SuCS)'
   ];
 
-  const currentLat = result.trackPoints.find(p => p.kind === 'current')?.lat || 16.9;
-  const currentLng = result.trackPoints.find(p => p.kind === 'current')?.lng || 83.6;
-  const currentWind = result.windKmh;
-  const currentPres = result.pressureHpa;
+  const currentLat = appMode === 'REAL'
+    ? (selectedCyclone?.latitude ?? realAnalysis?.location?.latitude ?? 15.2)
+    : (result.trackPoints.find(p => p.kind === 'current')?.lat || 16.9);
+
+  const currentLng = appMode === 'REAL'
+    ? (selectedCyclone?.longitude ?? realAnalysis?.location?.longitude ?? 82.4)
+    : (result.trackPoints.find(p => p.kind === 'current')?.lng || 83.6);
+
+  const currentWind = appMode === 'REAL'
+    ? (selectedCyclone?.windKmh ?? realAnalysis?.environment?.wind_kmh ?? 75)
+    : result.windKmh;
+
+  const currentPres = appMode === 'REAL'
+    ? (selectedCyclone?.pressureHpa ?? realAnalysis?.environment?.pressure_hpa ?? 995)
+    : result.pressureHpa;
 
   return (
     <Panel>
-      <PanelHeader title="Track & Intensity Prediction" note={isModified ? 'Simulated scenario' : (appMode === 'REAL' ? 'Live ML Inference' : 'Demo prediction')} />
+      <PanelHeader
+        title={`Track & Intensity Prediction ${appMode === 'REAL' && selectedCyclone ? `— ${selectedCyclone.name}` : ''}`}
+        note={isModified ? 'Simulated scenario' : (appMode === 'REAL' ? 'Live ML Inference' : 'Demo prediction')}
+      />
       <div className="p-4 space-y-6">
         
         {/* SIH26070 AI INTEGRATION */}

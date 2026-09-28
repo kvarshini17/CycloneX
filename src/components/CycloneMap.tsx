@@ -7,6 +7,7 @@ import { useSimulation } from '../context/SimulationContext';
 import { GlobeMap } from './GlobeMap';
 import { Globe2, Map as MapIcon, Play, Pause, RotateCcw } from 'lucide-react';
 import type { EmergencyPriority } from '../utils/simulation';
+import { INDIAN_COASTAL_PORTS } from '../data/indiaCoastalAssets';
 
 // RESTORED: Original OSM tiles (no API key required)
 const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -60,8 +61,9 @@ function Legend({ isModified, priority, aiData, appMode }: { isModified: boolean
     const realItems = [
       { label: 'Active Cyclone', color: 'var(--color-critical)', shape: 'dot' as const },
       { label: 'Selected Analysis Point', color: 'var(--color-signal)', shape: 'dot' as const },
-      { label: 'Influence / Scan Radius (250km)', color: 'var(--color-signal)', shape: 'dashed' as const },
+      { label: 'India Port Asset', color: 'var(--color-data)', shape: 'dot' as const },
       { label: 'AI One-Step Projection', color: 'rgba(255,50,50,0.9)', shape: 'dashed' as const },
+      { label: 'Scenario Shift Track', color: 'var(--color-warn)', shape: 'dashed' as const },
     ];
     return (
       <div className="absolute bottom-3 left-3 z-[400] rounded-lg border border-hairline-strong bg-panel-raised/95 px-3 py-2.5 backdrop-blur">
@@ -183,9 +185,17 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
     aiData,
     appMode,
     selectedLocation,
+    selectedCyclone,
     activeCyclones,
     analyzeLocation,
+    realScenarioResult,
   } = useSimulation();
+
+  // Operational Map Layer Toggles
+  const [showActiveCyclones, setShowActiveCyclones] = useState(true);
+  const [showIndianPorts, setShowIndianPorts] = useState(true);
+  const [showAiProjection, setShowAiProjection] = useState(true);
+  const [showScenarioTrack, setShowScenarioTrack] = useState(true);
 
   // Replay State (for DEMO mode only)
   const [replayIndex, setReplayIndex] = useState(-1);
@@ -278,25 +288,70 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
         </button>
       </div>
 
-      {/* Real Mode Instruction Badge or Replay Controls */}
-      {appMode === 'REAL' ? (
-        <div className="absolute left-3 top-3 z-[500] flex items-center gap-2 rounded-lg border border-hairline-strong bg-panel-raised/95 px-3 py-2 text-[11px] backdrop-blur">
-          <span className="h-2 w-2 rounded-full bg-signal animate-pulse" />
-          <span className="font-semibold text-ink">GLOBAL REAL DATA VIEW</span>
-          <span className="text-ink-dim">· Click any point on Earth to analyze</span>
-        </div>
-      ) : (
-        <div className="absolute left-3 top-3 z-[500] flex items-center gap-2 rounded-lg border border-hairline-strong bg-panel-raised/95 px-3 py-2 text-[11px] backdrop-blur">
-          <span className="font-semibold text-ink-dim uppercase">Replay Demo:</span>
-          <button onClick={() => setIsPlaying(!isPlaying)} className="rounded p-1 hover:bg-panel-hover text-ink">
-            {isPlaying ? <Pause size={14}/> : <Play size={14}/>}
-          </button>
-          <button onClick={() => { setIsPlaying(false); setReplayIndex(-1); }} className="rounded p-1 hover:bg-panel-hover text-ink" title="Reset">
-            <RotateCcw size={14}/>
-          </button>
-          <span className="mono text-ink-dim ml-2">{activeReplayPoint ? activeReplayPoint.label : 'LIVE/LATEST'}</span>
-        </div>
-      )}
+      {/* Real Mode Instruction Badge or Replay Controls + Layer Toggles */}
+      <div className="absolute left-3 top-3 z-[500] flex flex-wrap items-center gap-2 max-w-[calc(100%-190px)]">
+        {appMode === 'REAL' ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-hairline-strong bg-panel-raised/95 px-3 py-1.5 text-[11px] backdrop-blur">
+            <span className="h-2 w-2 rounded-full bg-signal animate-pulse" />
+            <span className="font-semibold text-ink">ACTIVE CYCLONES: {activeCyclones.length}</span>
+            {selectedCyclone && (
+              <>
+                <span className="text-ink-dim">|</span>
+                <span className="mono text-signal font-semibold">SELECTED: {selectedCyclone.name}</span>
+              </>
+            )}
+            <span className="text-ink-dim">|</span>
+            <span className="text-ink-dim">
+              INDIA ASSETS: {INDIAN_COASTAL_PORTS.length} PORTS
+            </span>
+            <span className="text-ink-dim">|</span>
+            <span className="mono text-safe">MODEL: ONLINE</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg border border-hairline-strong bg-panel-raised/95 px-3 py-1.5 text-[11px] backdrop-blur">
+            <span className="font-semibold text-ink-dim uppercase">Replay Demo:</span>
+            <button onClick={() => setIsPlaying(!isPlaying)} className="rounded p-1 hover:bg-panel-hover text-ink">
+              {isPlaying ? <Pause size={14}/> : <Play size={14}/>}
+            </button>
+            <button onClick={() => { setIsPlaying(false); setReplayIndex(-1); }} className="rounded p-1 hover:bg-panel-hover text-ink" title="Reset">
+              <RotateCcw size={14}/>
+            </button>
+            <span className="mono text-ink-dim ml-1">{activeReplayPoint ? activeReplayPoint.label : 'LIVE/LATEST'}</span>
+          </div>
+        )}
+
+        {/* Operational Layer Quick Toggles */}
+        {appMode === 'REAL' && (
+          <div className="hidden sm:flex items-center gap-1 rounded-lg border border-hairline-strong bg-panel-raised/90 p-1 text-[10.5px] backdrop-blur">
+            <button
+              onClick={() => setShowActiveCyclones(!showActiveCyclones)}
+              className={`rounded px-2 py-0.5 font-medium transition-colors ${showActiveCyclones ? 'bg-critical/20 text-critical border border-critical/30' : 'text-ink-dim hover:text-ink'}`}
+            >
+              🌀 Cyclones ({activeCyclones.length})
+            </button>
+            <button
+              onClick={() => setShowIndianPorts(!showIndianPorts)}
+              className={`rounded px-2 py-0.5 font-medium transition-colors ${showIndianPorts ? 'bg-data/20 text-data border border-data/30' : 'text-ink-dim hover:text-ink'}`}
+            >
+              ⚓ India Ports
+            </button>
+            <button
+              onClick={() => setShowAiProjection(!showAiProjection)}
+              className={`rounded px-2 py-0.5 font-medium transition-colors ${showAiProjection ? 'bg-signal/20 text-signal border border-signal/30' : 'text-ink-dim hover:text-ink'}`}
+            >
+              AI Vector
+            </button>
+            {realScenarioResult && (
+              <button
+                onClick={() => setShowScenarioTrack(!showScenarioTrack)}
+                className={`rounded px-2 py-0.5 font-medium transition-colors ${showScenarioTrack ? 'bg-warn/20 text-warn border border-warn/30' : 'text-ink-dim hover:text-ink'}`}
+              >
+                ⚡ Scenario
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {viewMode === '3D' ? (
         <GlobeMap activeCenter={currentCenter} replayIndex={replayIndex} />
@@ -327,7 +382,7 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
           {appMode === 'REAL' && (
             <>
               {/* Active Cyclones from NOAA NHC / GDACS */}
-              {activeCyclones.map((storm) => (
+              {showActiveCyclones && activeCyclones.map((storm) => (
                 <CircleMarker
                   key={storm.id}
                   center={[storm.latitude, storm.longitude]}
@@ -361,6 +416,29 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
                       <p className="text-[10px] text-ink-faint mt-1">Source: {storm.source}</p>
                     </div>
                   </Popup>
+                </CircleMarker>
+              ))}
+
+              {/* Indian Coastal Ports Infrastructure */}
+              {showIndianPorts && INDIAN_COASTAL_PORTS.map((port) => (
+                <CircleMarker
+                  key={port.id}
+                  center={[port.lat, port.lon]}
+                  radius={port.type === 'MAJOR' ? 5 : 3.5}
+                  pathOptions={{
+                    color: port.type === 'MAJOR' ? 'var(--color-data)' : 'var(--color-ink-faint)',
+                    fillColor: port.type === 'MAJOR' ? 'var(--color-data)' : 'var(--color-panel)',
+                    fillOpacity: 0.8,
+                    weight: 1.5,
+                  }}
+                >
+                  <Tooltip direction="top" offset={[0, -4]}>
+                    <div className="mono text-[10.5px]">
+                      ⚓ {port.name} ({port.state})
+                      <br />
+                      {port.type} PORT · {port.annualTrafficMT} MT/yr
+                    </div>
+                  </Tooltip>
                 </CircleMarker>
               ))}
 
@@ -398,10 +476,18 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
               )}
 
               {/* Real AI One-step projection line */}
-              {aiLine && (
+              {showAiProjection && aiLine && (
                 <Polyline
                   positions={aiLine}
                   pathOptions={{ color: 'rgba(255, 50, 50, 0.9)', weight: 3, opacity: 1, dashArray: '6 6' }}
+                />
+              )}
+
+              {/* Scenario Shift Track in Real Mode */}
+              {showScenarioTrack && realScenarioResult?.scenarioTrack && (
+                <Polyline
+                  positions={realScenarioResult.scenarioTrack.map((pt: any) => [pt.lat, pt.lon] as [number, number])}
+                  pathOptions={{ color: 'var(--color-warn)', weight: 3, opacity: 0.9, dashArray: '4 4' }}
                 />
               )}
             </>
