@@ -1,4 +1,4 @@
-import { cycloneProfile } from '../data/demoData';
+﻿import { cycloneProfile } from '../data/demoData';
 import { useSimulation } from '../context/SimulationContext';
 import { StatCard } from './ui';
 import { Activity, AlertCircle } from 'lucide-react';
@@ -42,9 +42,9 @@ export function StatusCards() {
       <div className="rounded-xl border border-hairline bg-panel-raised p-4 flex flex-col justify-between">
         <p className="text-[11px] font-medium uppercase tracking-wide text-ink-dim flex items-center gap-1.5"><Activity size={12} className="text-data"/> AI Movement</p>
         <p className="font-mono text-[13px] font-bold text-ink mt-2 leading-tight">
-          {aiStatus === 'ONLINE' && aiData ? `ΔLat: ${aiData.delta_lat.toFixed(2)}°\nΔLng: ${aiData.delta_lon.toFixed(2)}°` : '--'}
+          {aiStatus === 'ONLINE' && aiData ? `Î”Lat: ${aiData.delta_lat.toFixed(2)}Â°\nÎ”Lng: ${aiData.delta_lon.toFixed(2)}Â°` : '--'}
         </p>
-        <p className="text-[10px] text-ink-faint mt-1">One-Step Δ</p>
+        <p className="text-[10px] text-ink-faint mt-1">One-Step Î”</p>
       </div>
 
       {/* 8. Model Status */}
@@ -67,8 +67,9 @@ export function StatusCards() {
             </span>
           )}
         </div>
-        <p className="text-[10px] text-ink-faint mt-1">Local PyTorch</p>
+        <p className="text-[10px] text-ink-faint mt-1">PyTorch Model</p>
       </div>
     </div>
   );
 }
+

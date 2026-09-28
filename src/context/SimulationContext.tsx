@@ -69,7 +69,8 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           ];
         });
 
-        const response = await fetch('/api/ai/predict', {
+        const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+        const response = await fetch(apiBase + '/api/ai/predict', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ track_sequence: trackSequence })
@@ -139,3 +140,4 @@ export function useSimulation() {
   if (!ctx) throw new Error('useSimulation must be used within a SimulationProvider');
   return ctx;
 }
+

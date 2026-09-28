@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // CycloneX — Data Quality & Source Status Tracker (SIH26070)
 // =============================================================================
 // Tracks telemetry health, network latency, data freshness, and scientific
@@ -11,6 +11,7 @@
 
 import type { DataSourceStatus, SourceStreamHealth } from '../../models/cycloneObservation';
 import { weatherService } from '../ingestion/weatherService';
+import { oceanService } from '../ingestion/oceanService';
 
 export interface SourceStatusItem {
   id: string;
@@ -37,20 +38,23 @@ export class SourceStatusTracker {
     const isLiveWeather = lastWeather?.isRealLiveFetch ?? false;
     const weatherLatency = lastWeather?.latencyMs ?? 145;
 
+    const lastOcean = oceanService.getLastObservation();
+    const isLiveOcean = lastOcean?.sourceStatus === 'CONNECTED';
+
     return [
       {
         id: 'stream-satellite',
         name: 'Satellite Imagery (VIS / IR / WV)',
         category: 'SATELLITE',
-        badgeLabel: 'SAMPLE DATA',
+        badgeLabel: 'HISTORICAL DEMO / SAMPLE',
         badgeType: 'sample',
         status: 'SAMPLE_DATA',
-        provider: 'ISRO / MOSDAC (INSAT-3DR Imager)',
+        provider: 'NASA GIBS (MODIS) / INSAT Calibrated Sample',
         refreshInterval: '15 – 30 Minutes',
-        lastUpdated: '12 min ago (Sample)',
+        lastUpdated: 'Michaung (2023) Calibrated Frames',
         latencyMs: 310,
-        openSourceType: 'Open Scientific Archive / MOSDAC Public',
-        scientificAttribution: 'Indian Space Research Organisation / IMD New Delhi',
+        openSourceType: 'Open Scientific Archive / NASA GIBS Public WMTS',
+        scientificAttribution: 'NASA Earthdata / ISRO MOSDAC Open Sample',
         description: 'Multi-spectral 0.65µm Visible, 10.8µm Thermal IR, and 6.7µm Water Vapour calibrated imagery.',
       },
       {
@@ -72,16 +76,16 @@ export class SourceStatusTracker {
         id: 'stream-ocean',
         name: 'Sea Surface Temperature (SST)',
         category: 'OCEAN',
-        badgeLabel: 'SAMPLE DATA',
-        badgeType: 'sample',
-        status: 'SAMPLE_DATA',
-        provider: 'NOAA CRW / INCOIS Ocean Observations',
+        badgeLabel: isLiveOcean ? 'LIVE COPERNICUS' : 'AVAILABLE (SAMPLE)',
+        badgeType: isLiveOcean ? 'live' : 'sample',
+        status: isLiveOcean ? 'CONNECTED' : 'SAMPLE_DATA',
+        provider: isLiveOcean ? 'Copernicus Marine Service (METOFFICE-GLO-SST-L4)' : 'Copernicus Marine / NOAA OISST (Baseline)',
         refreshInterval: 'Daily / 24h Update',
-        lastUpdated: 'Today at 06:00 UTC (Sample)',
-        latencyMs: 220,
-        openSourceType: 'Open Scientific Dataset (NOAA OISST v2.1)',
-        scientificAttribution: 'NOAA Coral Reef Watch & Indian National Centre for Ocean Information Services',
-        description: 'High-resolution sea surface temperature, 26°C isotherm depth, and tropical cyclone heat potential (TCHP).',
+        lastUpdated: isLiveOcean ? (lastOcean?.lastUpdated ? new Date(lastOcean.lastUpdated).toLocaleDateString() : 'Live') : 'Daily Analysis (Baseline)',
+        latencyMs: isLiveOcean ? 420 : 220,
+        openSourceType: 'Copernicus Marine Data Store (EU Copernicus Programme)',
+        scientificAttribution: 'Copernicus Marine Service / UK Met Office OSTIA L4 NRT',
+        description: 'High-resolution sea surface temperature (analysed_sst), 26°C isotherm depth, and tropical cyclone heat potential.',
       },
       {
         id: 'stream-historical',

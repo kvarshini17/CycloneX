@@ -91,12 +91,38 @@ function Legend({ isModified, priority, aiData }: { isModified: boolean; priorit
   );
 }
 
-// Map center automatic controller
-function MapCenterController({ center }: { center: [number, number] }) {
+// Map center & robust resize lifecycle controller
+function MapLifecycleController({ center }: { center: [number, number] }) {
   const map = useMap();
+
   useEffect(() => {
     map.flyTo(center, map.getZoom(), { duration: 1.5 });
   }, [center, map]);
+
+  useEffect(() => {
+    // Invalidate size immediately and at staggered intervals to prevent half-rendered tiles
+    map.invalidateSize();
+    const t1 = setTimeout(() => map.invalidateSize(), 100);
+    const t2 = setTimeout(() => map.invalidateSize(), 300);
+    const t3 = setTimeout(() => map.invalidateSize(), 600);
+
+    const container = map.getContainer();
+    let resizeObserver: ResizeObserver | null = null;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        map.invalidateSize();
+      });
+      resizeObserver.observe(container);
+    }
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      if (resizeObserver) resizeObserver.disconnect();
+    };
+  }, [map]);
+
   return null;
 }
 
@@ -188,7 +214,7 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
         <GlobeMap activeCenter={currentCenter} replayIndex={replayIndex} />
       ) : (
         <MapContainer center={currentCenter} zoom={6} scrollWheelZoom className="h-full w-full bg-transparent map-dark-tiles" zoomControl={false}>
-          <MapCenterController center={currentCenter} />
+          <MapLifecycleController center={currentCenter} />
           
           {!tileError && (
             <TileLayer
@@ -255,3 +281,4 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
     </div>
   );
 }
+

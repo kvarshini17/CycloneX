@@ -1,4 +1,4 @@
-import { Satellite, CloudSun, History, Thermometer, MapPinned, Building2, CheckCircle2 } from 'lucide-react';
+﻿import { Satellite, CloudSun, History, Thermometer, MapPinned, Building2, CheckCircle2 } from 'lucide-react';
 import { sourceStatusTracker } from '../services/quality/sourceStatusTracker';
 import { Panel } from './ui';
 
@@ -19,7 +19,7 @@ export function DataSourcesPanel({ onNavigateToSources }: { onNavigateToSources?
             onClick={onNavigateToSources}
             className="rounded-md border border-hairline-strong bg-void-raised px-2.5 py-1 text-[11px] font-medium text-data hover:bg-panel-hover"
           >
-            View Multi-Source Dashboard →
+            View Multi-Source Dashboard â†’
           </button>
         )}
       </div>
@@ -56,8 +56,9 @@ export function DataSourcesPanel({ onNavigateToSources }: { onNavigateToSources?
       </div>
       <div className="flex items-center gap-2 border-t border-hairline px-4 py-3 text-[11px] text-ink-faint">
         <CheckCircle2 size={13} className="text-safe" />
-        Transparent data labeling: Live Open-Meteo weather connected where reachable; INSAT-3DR satellite imagery and OISST data represented with authentic calibrated samples.
+        Transparent data labeling: Live Open-Meteo weather connected where reachable; Copernicus Marine SST and Open-Meteo weather connected when reachable; satellite imagery and historical tracks represented with authentic calibrated samples.
       </div>
     </Panel>
   );
 }
+

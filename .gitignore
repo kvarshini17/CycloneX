@@ -54,3 +54,7 @@ extract.py
 *.ipynb_checkpoints/
 
 mdapi.py
+mdapi.zip
+.copernicusmarine/
+*.copernicusmarine*
+

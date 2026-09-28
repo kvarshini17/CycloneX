@@ -1,0 +1,44 @@
+﻿# CycloneX — Render.com deployment configuration
+# Two services: Node.js API gateway + Python ML & Copernicus API
+#
+# Deploy: https://render.com/docs/infrastructure-as-code
+# Link this repository to Render to auto-deploy both services.
+
+services:
+  # ── Node.js API Gateway ────────────────────────────────────────────────────
+  - type: web
+    name: cyclonex-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: FRONTEND_ORIGIN
+        value: https://cyclone-x-delta.vercel.app,http://localhost:5173
+      - key: ML_SERVICE_URL
+        sync: false   # e.g. https://cyclonex-ml.onrender.com
+    healthCheckPath: /health
+
+  # ── Python FastAPI ML & Copernicus Service ────────────────────────────────
+  - type: web
+    name: cyclonex-ml
+    runtime: python
+    rootDir: backend/ml
+    buildCommand: pip install --upgrade pip && pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt
+    startCommand: python api.py
+    envVars:
+      - key: PORT
+        value: 8001
+      - key: MODEL_PATH
+        value: /app/best_model.zip
+      - key: MODEL_DOWNLOAD_URL
+        sync: false   # Public direct download URL to best_model.zip
+      - key: COPERNICUSMARINE_SERVICE_USERNAME
+        sync: false   # Copernicus Marine username
+      - key: COPERNICUSMARINE_SERVICE_PASSWORD
+        sync: false   # Copernicus Marine password
+    healthCheckPath: /health
