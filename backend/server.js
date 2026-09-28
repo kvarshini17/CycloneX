@@ -1,4 +1,4 @@
-﻿import dotenv from 'dotenv';
+import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
 import cors from 'cors';
@@ -121,7 +121,7 @@ app.get('/api/data/ocean/sst', async (req, res) => {
   const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8001';
 
   try {
-    const response = await axios.get(`${ML_URL}/api/data/ocean/sst?lat=${lat}&lng=${lng}`, { timeout: 8000 });
+    const response = await axios.get(`${ML_URL}/api/data/ocean/sst?lat=${lat}&lng=${lng}`, { timeout: 25000 });
     return res.json(response.data);
   } catch (err) {
     console.warn('[Node] Copernicus proxy unavailable:', err.message);

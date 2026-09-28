@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react';
 import {
   BASELINE_INPUTS,
   INTENSITY_RANGE,
@@ -10,6 +10,7 @@ import {
 } from '../utils/simulation';
 import type { CycloneObservation } from '../models/cycloneObservation';
 import type { MLPipelineExecutionSummary } from '../models/mlPipelineTypes';
+import { ingestionOrchestrator } from '../services/ingestion';
 
 export type AppMode = 'REAL' | 'DEMO';
 
@@ -49,6 +50,26 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   // Real SIH26070 Local Inference
   const [aiData, setAiData] = useState<any>(null);
   const [aiStatus, setAiStatus] = useState<'ONLINE' | 'OFFLINE' | 'LOADING'>('LOADING');
+  // Ingest multi-source observation (Copernicus SST, Open-Meteo weather, etc.)
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadMultiSourceData() {
+      try {
+        const currentLat = result.trackPoints.find(p => p.kind === 'current')?.lat || 16.9;
+        const currentLon = result.trackPoints.find(p => p.kind === 'current')?.lng || 83.6;
+        const obs = await ingestionOrchestrator.ingestCurrentObservation(currentLat, currentLon, appMode);
+        if (!isCancelled) {
+          setLiveObservation(obs);
+        }
+      } catch (err) {
+        console.warn('[SimulationContext] Multi-source ingestion error:', err);
+      }
+    }
+    loadMultiSourceData();
+    return () => {
+      isCancelled = true;
+    };
+  }, [appMode]);
 
   useEffect(() => {
     async function fetchAiPrediction() {

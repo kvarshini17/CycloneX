@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // CycloneX — Multi-Source Intelligence Dashboard (SIH26070)
 // =============================================================================
 // Professional dashboard component visualizing the multi-source data foundation:
@@ -462,8 +462,16 @@ export function MultiSourceIntelligence() {
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-hairline pb-2">
                 <span className="text-[11px] font-medium text-ink-faint">Dataset Provider</span>
-                <span className="rounded bg-signal/10 px-2 py-0.5 text-[10.5px] font-semibold text-signal">
-                  NOAA OISST / INCOIS (Sample)
+                <span
+                  className={`rounded px-2 py-0.5 text-[10.5px] font-semibold ${
+                    observation?.ocean.sourceStatus === 'CONNECTED'
+                      ? 'bg-safe/15 text-safe border border-safe/30'
+                      : 'bg-signal/10 text-signal border border-signal/30'
+                  }`}
+                >
+                  {observation?.ocean.sourceStatus === 'CONNECTED'
+                    ? 'LIVE COPERNICUS MARINE'
+                    : 'VALIDATED BASELINE (SAMPLE)'}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2.5">

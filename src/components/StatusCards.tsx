@@ -42,9 +42,9 @@ export function StatusCards() {
       <div className="rounded-xl border border-hairline bg-panel-raised p-4 flex flex-col justify-between">
         <p className="text-[11px] font-medium uppercase tracking-wide text-ink-dim flex items-center gap-1.5"><Activity size={12} className="text-data"/> AI Movement</p>
         <p className="font-mono text-[13px] font-bold text-ink mt-2 leading-tight">
-          {aiStatus === 'ONLINE' && aiData ? `Î”Lat: ${aiData.delta_lat.toFixed(2)}Â°\nÎ”Lng: ${aiData.delta_lon.toFixed(2)}Â°` : '--'}
+          {aiStatus === 'ONLINE' && aiData ? `ΔLat: ${aiData.delta_lat.toFixed(2)}°\nΔLng: ${aiData.delta_lon.toFixed(2)}°` : '--'}
         </p>
-        <p className="text-[10px] text-ink-faint mt-1">One-Step Î”</p>
+        <p className="text-[10px] text-ink-faint mt-1">One-Step Δ</p>
       </div>
 
       {/* 8. Model Status */}
@@ -72,4 +72,5 @@ export function StatusCards() {
     </div>
   );
 }
+
 

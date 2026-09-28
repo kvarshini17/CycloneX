@@ -1,4 +1,4 @@
-﻿import { Satellite, CloudSun, History, Thermometer, MapPinned, Building2, CheckCircle2 } from 'lucide-react';
+import { Satellite, CloudSun, History, Thermometer, MapPinned, Building2, CheckCircle2 } from 'lucide-react';
 import { sourceStatusTracker } from '../services/quality/sourceStatusTracker';
 import { Panel } from './ui';
 
@@ -19,7 +19,7 @@ export function DataSourcesPanel({ onNavigateToSources }: { onNavigateToSources?
             onClick={onNavigateToSources}
             className="rounded-md border border-hairline-strong bg-void-raised px-2.5 py-1 text-[11px] font-medium text-data hover:bg-panel-hover"
           >
-            View Multi-Source Dashboard â†’
+            View Multi-Source Dashboard →
           </button>
         )}
       </div>

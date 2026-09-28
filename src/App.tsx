@@ -15,8 +15,22 @@ import { WhatIfSimulator } from './components/WhatIfSimulator';
 import { AIDisasterCommander } from './components/AIDisasterCommander';
 import { MultiSourceIntelligence } from './components/MultiSourceIntelligence';
 import { SectionHeading } from './components/ui';
+import { useSimulation } from './context/SimulationContext';
 
 function DashboardSection({ onNavigate }: { onNavigate: (id: SectionId) => void }) {
+  const { liveObservation, appMode } = useSimulation();
+
+  const oceanSst = liveObservation?.ocean?.sstCelsius;
+  const isOceanLive = liveObservation?.ocean?.sourceStatus === 'CONNECTED';
+  const oceanBadge = oceanSst != null
+    ? `🌊 Ocean SST (${oceanSst}°C) · ${isOceanLive ? 'LIVE COPERNICUS' : 'SAMPLE'}`
+    : '🌊 Ocean SST (29.4°C) · SAMPLE';
+
+  const isWeatherLive = liveObservation?.atmosphere?.sourceStatus === 'CONNECTED' || (liveObservation?.atmosphere && (liveObservation.atmosphere as any).isRealLiveFetch);
+  const atmosphereBadge = liveObservation?.atmosphere
+    ? `🌬 Atmosphere · ${isWeatherLive ? 'LIVE OPEN-METEO' : (appMode === 'DEMO' ? 'DEMO REPLAY' : 'SAMPLE')}`
+    : `🌬 Atmosphere · ${appMode === 'DEMO' ? 'DEMO REPLAY' : 'SAMPLE'}`;
+
   return (
     <div className="space-y-5">
       <StatusCards />
@@ -31,11 +45,15 @@ function DashboardSection({ onNavigate }: { onNavigate: (id: SectionId) => void 
           <span className="rounded bg-void px-2 py-0.5 text-[11px] font-mono text-ink-dim border border-hairline">
             🛰 Satellite (VIS/IR/WV) · SAMPLE
           </span>
-          <span className="rounded bg-void px-2 py-0.5 text-[11px] font-mono text-ink-dim border border-hairline">
-            🌊 Ocean SST (29.4°C) · SAMPLE
+          <span className={`rounded bg-void px-2 py-0.5 text-[11px] font-mono border ${
+            isOceanLive ? 'text-safe border-safe/30' : 'text-ink-dim border-hairline'
+          }`}>
+            {oceanBadge}
           </span>
-          <span className="rounded bg-void px-2 py-0.5 text-[11px] font-mono text-ink-dim border border-hairline">
-            🌬 Atmosphere · LIVE / SAMPLE
+          <span className={`rounded bg-void px-2 py-0.5 text-[11px] font-mono border ${
+            isWeatherLive ? 'text-safe border-safe/30' : 'text-ink-dim border-hairline'
+          }`}>
+            {atmosphereBadge}
           </span>
           <span className="rounded bg-void px-2 py-0.5 text-[11px] font-mono text-ink-dim border border-hairline">
             🌀 Historical IBTrACS · READY
