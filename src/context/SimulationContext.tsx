@@ -14,6 +14,70 @@ import { ingestionOrchestrator } from '../services/ingestion';
 
 export type AppMode = 'REAL' | 'DEMO';
 
+export interface ActiveCyclone {
+  id: string;
+  name: string;
+  classification: string;
+  latitude: number;
+  longitude: number;
+  windKmh: number | null;
+  pressureHpa: number | null;
+  movement: string;
+  source: string;
+  timestamp: string;
+}
+
+export interface RealLocationAnalysis {
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  timestamp: string;
+  cyclone_status: string;
+  active_cyclones_count: number;
+  matched_cyclone: ActiveCyclone | null;
+  closest_cyclone_distance_km: number | null;
+  environment: {
+    sst_c: number | null;
+    sst_status: string;
+    sst_source: string;
+    wind_kmh: number | null;
+    pressure_hpa: number | null;
+    temperature_c: number | null;
+    humidity_pct: number | null;
+    precipitation_mm: number | null;
+    weather_status: string;
+  };
+  exposure: {
+    population: string;
+    hospitals: string;
+    communication_towers: string;
+    note: string;
+  };
+  model: {
+    status: 'ONLINE' | 'OFFLINE';
+    inference_time_ms?: number;
+    task: string;
+    satellite_input: string;
+    prediction?: {
+      predicted_wind_kmh: number;
+      predicted_pressure_hpa: number;
+      delta_lat: number;
+      delta_lon: number;
+      projected_lat: number;
+      projected_lon: number;
+      category_index: number;
+    };
+  };
+  impacts: Array<{
+    category: string;
+    severity: string;
+    description: string;
+  }>;
+  preparedness: string[];
+  disclaimer: string;
+}
+
 interface SimulationContextValue {
   inputs: SimulationInputs;
   result: SimulationResult;
@@ -33,6 +97,15 @@ interface SimulationContextValue {
   // Real Local AI Data
   aiData: any;
   aiStatus: 'ONLINE' | 'OFFLINE' | 'LOADING';
+
+  // REAL DATA Mode Additions (Phases 2, 5, 6, 15)
+  selectedLocation: { lat: number; lng: number } | null;
+  setSelectedLocation: (loc: { lat: number; lng: number } | null) => void;
+  realAnalysis: RealLocationAnalysis | null;
+  isAnalyzing: boolean;
+  activeCyclones: ActiveCyclone[];
+  analyzeLocation: (lat: number, lng: number) => Promise<void>;
+  refreshActiveCyclones: () => Promise<void>;
 }
 
 const SimulationContext = createContext<SimulationContextValue | null>(null);
@@ -50,10 +123,11 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   // Real SIH26070 Local Inference
   const [aiData, setAiData] = useState<any>(null);
   const [aiStatus, setAiStatus] = useState<'ONLINE' | 'OFFLINE' | 'LOADING'>('LOADING');
-  // Ingest multi-source observation (Copernicus SST, Open-Meteo weather, etc.)
+  // Ingest multi-source observation (Copernicus SST, Open-Meteo weather, etc.) for DEMO mode
   useEffect(() => {
     let isCancelled = false;
     async function loadMultiSourceData() {
+      if (appMode !== 'DEMO') return;
       try {
         const currentLat = result.trackPoints.find(p => p.kind === 'current')?.lat || 16.9;
         const currentLon = result.trackPoints.find(p => p.kind === 'current')?.lng || 83.6;
@@ -69,6 +143,74 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     return () => {
       isCancelled = true;
     };
+  }, [appMode]);
+
+  // REAL DATA Mode State & Ingestion (Phases 2, 5, 6, 15)
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [realAnalysis, setRealAnalysis] = useState<RealLocationAnalysis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [activeCyclones, setActiveCyclones] = useState<ActiveCyclone[]>([]);
+
+  const refreshActiveCyclones = async () => {
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${apiBase}/api/real/cyclones`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.cyclones)) {
+          setActiveCyclones(data.cyclones);
+        }
+      }
+    } catch (err) {
+      console.warn('[SimulationContext] Failed to fetch active cyclones:', err);
+    }
+  };
+
+  const analyzeLocation = async (lat: number, lng: number) => {
+    setSelectedLocation({ lat, lng });
+    setIsAnalyzing(true);
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${apiBase}/api/real/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latitude: lat, longitude: lng })
+      });
+      if (res.ok) {
+        const data: RealLocationAnalysis = await res.json();
+        setRealAnalysis(data);
+        if (data.model && data.model.status === 'ONLINE' && data.model.prediction) {
+          setAiData({
+            wind: data.model.prediction.predicted_wind_kmh,
+            pressure: data.model.prediction.predicted_pressure_hpa,
+            delta_lat: data.model.prediction.delta_lat,
+            delta_lon: data.model.prediction.delta_lon,
+            projectedLat: data.model.prediction.projected_lat,
+            projectedLng: data.model.prediction.projected_lon,
+            category: data.model.prediction.category_index
+          });
+          setAiStatus('ONLINE');
+        }
+      }
+    } catch (err) {
+      console.warn('[SimulationContext] Real analysis failed:', err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Hard Mode Isolation: On REAL mode switch, fetch active cyclones & default coordinate
+  useEffect(() => {
+    if (appMode === 'REAL') {
+      refreshActiveCyclones();
+      const initLat = selectedLocation ? selectedLocation.lat : 15.2;
+      const initLng = selectedLocation ? selectedLocation.lng : 82.4;
+      analyzeLocation(initLat, initLng);
+    } else {
+      // Clear real mode state on return to DEMO to prevent state leakage
+      setRealAnalysis(null);
+      setSelectedLocation(null);
+    }
   }, [appMode]);
 
   useEffect(() => {
@@ -148,7 +290,14 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         liveEvaluation,
         setLiveEvaluation,
         aiData,
-        aiStatus
+        aiStatus,
+        selectedLocation,
+        setSelectedLocation,
+        realAnalysis,
+        isAnalyzing,
+        activeCyclones,
+        analyzeLocation,
+        refreshActiveCyclones
       }}
     >
       {children}

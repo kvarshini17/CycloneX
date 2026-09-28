@@ -1,6 +1,6 @@
 import 'leaflet/dist/leaflet.css';
 import { useMemo, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Circle, CircleMarker, Polyline, Tooltip, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, CircleMarker, Polyline, Tooltip, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { nearbyCities } from '../data/demoData';
 import type { RiskLevel } from '../types';
 import { useSimulation } from '../context/SimulationContext';
@@ -55,7 +55,33 @@ function OfflineGraticule() {
   );
 }
 
-function Legend({ isModified, priority, aiData }: { isModified: boolean; priority: EmergencyPriority, aiData: any }) {
+function Legend({ isModified, priority, aiData, appMode }: { isModified: boolean; priority: EmergencyPriority, aiData: any, appMode: 'REAL' | 'DEMO' }) {
+  if (appMode === 'REAL') {
+    const realItems = [
+      { label: 'Active Cyclone', color: 'var(--color-critical)', shape: 'dot' as const },
+      { label: 'Selected Analysis Point', color: 'var(--color-signal)', shape: 'dot' as const },
+      { label: 'Influence / Scan Radius (250km)', color: 'var(--color-signal)', shape: 'dashed' as const },
+      { label: 'AI One-Step Projection', color: 'rgba(255,50,50,0.9)', shape: 'dashed' as const },
+    ];
+    return (
+      <div className="absolute bottom-3 left-3 z-[400] rounded-lg border border-hairline-strong bg-panel-raised/95 px-3 py-2.5 backdrop-blur">
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Real Global Map Legend</p>
+        <div className="grid grid-cols-1 gap-y-1.5">
+          {realItems.map((item) => (
+            <div key={item.label} className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+              {item.shape === 'dot' ? (
+                <span className="h-2 w-2 rounded-full" style={{ background: item.color }} />
+              ) : (
+                <span className="h-0.5 w-3.5" style={{ borderTop: `2px dashed ${item.color}` }} />
+              )}
+              {item.label}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   const items = [
     { label: 'Current Position', color: 'var(--color-signal)', shape: 'dot' as const },
     { label: 'Historical Track', color: 'var(--color-ink-faint)', shape: 'line' as const },
@@ -91,20 +117,41 @@ function Legend({ isModified, priority, aiData }: { isModified: boolean; priorit
   );
 }
 
-// Map center & robust resize lifecycle controller
-function MapLifecycleController({ center }: { center: [number, number] }) {
+// Map center & robust resize lifecycle controller + click handler
+function MapLifecycleController({
+  center,
+  zoom,
+  appMode,
+  onMapClick,
+}: {
+  center: [number, number];
+  zoom: number;
+  appMode: 'REAL' | 'DEMO';
+  onMapClick: (lat: number, lng: number) => void;
+}) {
   const map = useMap();
 
+  useMapEvents({
+    click(e) {
+      if (appMode === 'REAL') {
+        const lat = Number(e.latlng.lat.toFixed(2));
+        const lng = Number(e.latlng.lng.toFixed(2));
+        onMapClick(lat, lng);
+      }
+    },
+  });
+
   useEffect(() => {
-    map.flyTo(center, map.getZoom(), { duration: 1.5 });
-  }, [center, map]);
+    map.setView(center, zoom, { animate: true });
+    map.invalidateSize();
+  }, [center, zoom, map]);
 
   useEffect(() => {
     // Invalidate size immediately and at staggered intervals to prevent half-rendered tiles
     map.invalidateSize();
-    const t1 = setTimeout(() => map.invalidateSize(), 100);
-    const t2 = setTimeout(() => map.invalidateSize(), 300);
-    const t3 = setTimeout(() => map.invalidateSize(), 600);
+    const t1 = setTimeout(() => map.invalidateSize(), 80);
+    const t2 = setTimeout(() => map.invalidateSize(), 250);
+    const t3 = setTimeout(() => map.invalidateSize(), 500);
 
     const container = map.getContainer();
     let resizeObserver: ResizeObserver | null = null;
@@ -121,7 +168,7 @@ function MapLifecycleController({ center }: { center: [number, number] }) {
       clearTimeout(t3);
       if (resizeObserver) resizeObserver.disconnect();
     };
-  }, [map]);
+  }, [map, appMode]);
 
   return null;
 }
@@ -129,9 +176,18 @@ function MapLifecycleController({ center }: { center: [number, number] }) {
 export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { height?: string; showRiskZones?: boolean }) {
   const [viewMode, setViewMode] = useState<'3D' | '2D'>('2D');
   const [tileError, setTileError] = useState(false);
-  const { result, baseline, isModified, aiData, appMode } = useSimulation();
+  const {
+    result,
+    baseline,
+    isModified,
+    aiData,
+    appMode,
+    selectedLocation,
+    activeCyclones,
+    analyzeLocation,
+  } = useSimulation();
 
-  // Replay State
+  // Replay State (for DEMO mode only)
   const [replayIndex, setReplayIndex] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -156,24 +212,50 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
   const activeReplayPoint = replayIndex >= 0 ? historyPoints[replayIndex] : null;
 
   const currentCenter = useMemo(() => {
+    if (appMode === 'REAL') {
+      if (selectedLocation) return [selectedLocation.lat, selectedLocation.lng] as [number, number];
+      return [18.0, 0.0] as [number, number]; // Global World View
+    }
     if (activeReplayPoint) return [activeReplayPoint.lat, activeReplayPoint.lng] as [number, number];
     const curr = result.trackPoints.find(p => p.kind === 'current');
     return curr ? [curr.lat, curr.lng] as [number, number] : [17.4, 83.2] as [number, number];
-  }, [result.trackPoints, activeReplayPoint]);
+  }, [result.trackPoints, activeReplayPoint, appMode, selectedLocation]);
+
+  const currentZoom = useMemo(() => {
+    if (appMode === 'REAL') {
+      return selectedLocation ? 4 : 2;
+    }
+    return 6;
+  }, [appMode, selectedLocation]);
 
   const historyLine = useMemo(() => {
+    if (appMode === 'REAL') return [];
     const pts = replayIndex >= 0 ? historyPoints.slice(0, replayIndex + 1) : historyPoints;
     return pts.map((p) => [p.lat, p.lng] as [number, number]);
-  }, [historyPoints, replayIndex]);
+  }, [historyPoints, replayIndex, appMode]);
   
-  const forecastLine = useMemo(() => result.trackPoints.filter((p) => p.kind === 'forecast' || p.kind === 'current').map((p) => [p.lat, p.lng] as [number, number]), [result.trackPoints]);
-  const baselineForecastLine = useMemo(() => baseline.trackPoints.filter((p) => p.kind === 'forecast' || p.kind === 'current').map((p) => [p.lat, p.lng] as [number, number]), [baseline.trackPoints]);
+  const forecastLine = useMemo(() => {
+    if (appMode === 'REAL') return [];
+    return result.trackPoints.filter((p) => p.kind === 'forecast' || p.kind === 'current').map((p) => [p.lat, p.lng] as [number, number]);
+  }, [result.trackPoints, appMode]);
+
+  const baselineForecastLine = useMemo(() => {
+    if (appMode === 'REAL') return [];
+    return baseline.trackPoints.filter((p) => p.kind === 'forecast' || p.kind === 'current').map((p) => [p.lat, p.lng] as [number, number]);
+  }, [baseline.trackPoints, appMode]);
   
   const aiLine = useMemo(() => {
+    if (appMode === 'REAL') {
+      if (!selectedLocation || !aiData || aiData.delta_lat == null) return null;
+      return [
+        [selectedLocation.lat, selectedLocation.lng],
+        [selectedLocation.lat + aiData.delta_lat, selectedLocation.lng + aiData.delta_lon]
+      ] as [number, number][];
+    }
     const curr = result.trackPoints.find(p => p.kind === 'current');
     if (!curr || !aiData) return null;
     return [[curr.lat, curr.lng], [curr.lat + aiData.delta_lat, curr.lng + aiData.delta_lon]] as [number, number][];
-  }, [result.trackPoints, aiData]);
+  }, [result.trackPoints, aiData, appMode, selectedLocation]);
 
   const trackColor = PRIORITY_COLOR[result.emergencyPriority];
 
@@ -196,8 +278,14 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
         </button>
       </div>
 
-      {/* Replay Controls */}
-      {appMode === 'DEMO' && (
+      {/* Real Mode Instruction Badge or Replay Controls */}
+      {appMode === 'REAL' ? (
+        <div className="absolute left-3 top-3 z-[500] flex items-center gap-2 rounded-lg border border-hairline-strong bg-panel-raised/95 px-3 py-2 text-[11px] backdrop-blur">
+          <span className="h-2 w-2 rounded-full bg-signal animate-pulse" />
+          <span className="font-semibold text-ink">GLOBAL REAL DATA VIEW</span>
+          <span className="text-ink-dim">· Click any point on Earth to analyze</span>
+        </div>
+      ) : (
         <div className="absolute left-3 top-3 z-[500] flex items-center gap-2 rounded-lg border border-hairline-strong bg-panel-raised/95 px-3 py-2 text-[11px] backdrop-blur">
           <span className="font-semibold text-ink-dim uppercase">Replay Demo:</span>
           <button onClick={() => setIsPlaying(!isPlaying)} className="rounded p-1 hover:bg-panel-hover text-ink">
@@ -213,8 +301,13 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
       {viewMode === '3D' ? (
         <GlobeMap activeCenter={currentCenter} replayIndex={replayIndex} />
       ) : (
-        <MapContainer center={currentCenter} zoom={6} scrollWheelZoom className="h-full w-full bg-transparent map-dark-tiles" zoomControl={false}>
-          <MapLifecycleController center={currentCenter} />
+        <MapContainer center={currentCenter} zoom={currentZoom} scrollWheelZoom className="h-full w-full bg-transparent map-dark-tiles" zoomControl={false}>
+          <MapLifecycleController
+            center={currentCenter}
+            zoom={currentZoom}
+            appMode={appMode}
+            onMapClick={analyzeLocation}
+          />
           
           {!tileError && (
             <TileLayer
@@ -228,56 +321,149 @@ export function CycloneMap({ height = 'h-[480px]', showRiskZones = true }: { hei
 
           {tileError && <OfflineGraticule />}
 
-          {/* Baseline reference zones */}
-          {showRiskZones && isModified && baseline.riskZones.map((zone) => (
-            <Circle key={`baseline-${zone.id}`} center={[zone.lat, zone.lng]} radius={zone.radiusKm * 1000} pathOptions={{ color: BASELINE_REF_COLOR, fillOpacity: 0, weight: 1.2, dashArray: '4 4' }} />
-          ))}
+          {/* ============================================================== */}
+          {/* REAL DATA MODE LAYERS (Phases 3, 4, 5, 14)                     */}
+          {/* ============================================================== */}
+          {appMode === 'REAL' && (
+            <>
+              {/* Active Cyclones from NOAA NHC / GDACS */}
+              {activeCyclones.map((storm) => (
+                <CircleMarker
+                  key={storm.id}
+                  center={[storm.latitude, storm.longitude]}
+                  radius={8}
+                  pathOptions={{
+                    color: 'var(--color-critical)',
+                    fillColor: 'var(--color-critical)',
+                    fillOpacity: 0.85,
+                    weight: 2,
+                  }}
+                  eventHandlers={{
+                    click: (e) => {
+                      e.originalEvent.stopPropagation();
+                      analyzeLocation(storm.latitude, storm.longitude);
+                    }
+                  }}
+                >
+                  <Tooltip direction="top" permanent={false}>
+                    <div className="mono text-[11px] font-bold">
+                      🌀 {storm.name} ({storm.classification})
+                      <br />
+                      Wind: {storm.windKmh ? `${storm.windKmh} km/h` : 'N/A'} · Click to analyze
+                    </div>
+                  </Tooltip>
+                  <Popup>
+                    <div className="mono text-[12px]">
+                      <p className="font-bold text-[13px] text-critical mb-1">🌀 {storm.name} ({storm.classification})</p>
+                      <p>Lat: {storm.latitude.toFixed(2)}° · Lon: {storm.longitude.toFixed(2)}°</p>
+                      <p>Wind: {storm.windKmh ? `${storm.windKmh} km/h` : 'N/A'}</p>
+                      <p>Pressure: {storm.pressureHpa ? `${storm.pressureHpa} hPa` : 'N/A'}</p>
+                      <p className="text-[10px] text-ink-faint mt-1">Source: {storm.source}</p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
 
-          {/* Current risk zones */}
-          {showRiskZones && result.riskZones.map((zone) => (
-            <Circle key={zone.id} center={replayIndex >= 0 && activeReplayPoint ? [activeReplayPoint.lat, activeReplayPoint.lng] : [zone.lat, zone.lng]} radius={zone.radiusKm * 1000 * zone.radiusMultiplier} pathOptions={{ color: RISK_FILL[zone.level], fillColor: RISK_FILL[zone.level], fillOpacity: 0.14, weight: 1.6 }}>
-              <Tooltip direction="top">{zone.name} &middot; {zone.level} risk {isModified && `(x${zone.radiusMultiplier.toFixed(2)})`}</Tooltip>
-            </Circle>
-          ))}
+              {/* Selected coordinate marker */}
+              {selectedLocation && (
+                <>
+                  <Circle
+                    center={[selectedLocation.lat, selectedLocation.lng]}
+                    radius={250000}
+                    pathOptions={{
+                      color: 'var(--color-signal)',
+                      fillColor: 'var(--color-signal)',
+                      fillOpacity: 0.12,
+                      weight: 1.5,
+                      dashArray: '4 4'
+                    }}
+                  />
+                  <CircleMarker
+                    center={[selectedLocation.lat, selectedLocation.lng]}
+                    radius={7}
+                    pathOptions={{
+                      color: 'var(--color-signal)',
+                      fillColor: 'var(--color-signal)',
+                      fillOpacity: 1,
+                      weight: 2
+                    }}
+                  >
+                    <Tooltip direction="top" permanent offset={[0, -8]}>
+                      <span className="mono text-[10.5px] font-bold">
+                        {selectedLocation.lat.toFixed(2)}°N, {selectedLocation.lng.toFixed(2)}°E
+                      </span>
+                    </Tooltip>
+                  </CircleMarker>
+                </>
+              )}
 
-          <Polyline positions={historyLine} pathOptions={{ color: 'var(--color-ink-faint)', weight: 2.5, opacity: 0.9 }} />
+              {/* Real AI One-step projection line */}
+              {aiLine && (
+                <Polyline
+                  positions={aiLine}
+                  pathOptions={{ color: 'rgba(255, 50, 50, 0.9)', weight: 3, opacity: 1, dashArray: '6 6' }}
+                />
+              )}
+            </>
+          )}
 
-          {/* Baseline forecasted track */}
-          {isModified && <Polyline positions={baselineForecastLine} pathOptions={{ color: BASELINE_REF_COLOR, weight: 2, opacity: 0.8, dashArray: '3 5' }} />}
-          
-          {/* Main scenario predicted track */}
-          {replayIndex === -1 && <Polyline positions={forecastLine} pathOptions={{ color: trackColor, weight: 2.5, opacity: 0.95, dashArray: '6 6' }} />}
-          
-          {/* AI Track Overlay */}
-          {aiLine && replayIndex === -1 && <Polyline positions={aiLine} pathOptions={{ color: 'rgba(255, 50, 50, 0.9)', weight: 3.5, opacity: 1, dashArray: '8 8' }} />}
+          {/* ============================================================== */}
+          {/* DEMO REPLAY MODE LAYERS (Visakhapatnam / Cyclone Varun)         */}
+          {/* ============================================================== */}
+          {appMode === 'DEMO' && (
+            <>
+              {/* Baseline reference zones */}
+              {showRiskZones && isModified && baseline.riskZones.map((zone) => (
+                <Circle key={`baseline-${zone.id}`} center={[zone.lat, zone.lng]} radius={zone.radiusKm * 1000} pathOptions={{ color: BASELINE_REF_COLOR, fillOpacity: 0, weight: 1.2, dashArray: '4 4' }} />
+              ))}
 
-          {/* Points */}
-          {result.trackPoints.filter(p => replayIndex === -1 || p.kind === 'history' || p.kind === 'current').map((p, idx) => {
-            const isReplayTarget = replayIndex >= 0 && idx === replayIndex;
-            const isCurrent = p.kind === 'current' && replayIndex === -1;
-            const isActive = isCurrent || isReplayTarget;
-            return (
-              <CircleMarker key={p.id} center={[p.lat, p.lng]} radius={isActive ? 8 : 4} pathOptions={{ color: isActive ? 'var(--color-signal)' : (p.kind === 'forecast' ? trackColor : 'var(--color-ink-faint)'), fillColor: isActive ? 'var(--color-signal)' : (p.kind === 'forecast' ? trackColor : 'var(--color-panel)'), fillOpacity: isActive ? 0.9 : 1, weight: 2 }}>
-                <Popup>
-                  <div className="mono">
-                    <p className="mb-1 font-semibold text-[13px]">{p.label}</p>
-                    <p>Lat: {p.lat.toFixed(2)} &middot; Lng: {p.lng.toFixed(2)}</p>
-                    <p>Wind: {p.windKmh} km/h</p>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            );
-          })}
+              {/* Current risk zones */}
+              {showRiskZones && result.riskZones.map((zone) => (
+                <Circle key={zone.id} center={replayIndex >= 0 && activeReplayPoint ? [activeReplayPoint.lat, activeReplayPoint.lng] : [zone.lat, zone.lng]} radius={zone.radiusKm * 1000 * zone.radiusMultiplier} pathOptions={{ color: RISK_FILL[zone.level], fillColor: RISK_FILL[zone.level], fillOpacity: 0.14, weight: 1.6 }}>
+                  <Tooltip direction="top">{zone.name} &middot; {zone.level} risk {isModified && `(x${zone.radiusMultiplier.toFixed(2)})`}</Tooltip>
+                </Circle>
+              ))}
 
-          {nearbyCities.map((city) => (
-            <CircleMarker key={city.name} center={[city.lat, city.lng]} radius={4} pathOptions={{ color: riskDotColor(city.riskLevel), fillColor: 'var(--color-panel)', fillOpacity: 1, weight: 2 }}>
-              <Tooltip direction="top" offset={[0, -4]} permanent={false}><span className="mono">{city.name} &middot; {city.riskLevel}</span></Tooltip>
-            </CircleMarker>
-          ))}
+              <Polyline positions={historyLine} pathOptions={{ color: 'var(--color-ink-faint)', weight: 2.5, opacity: 0.9 }} />
+
+              {/* Baseline forecasted track */}
+              {isModified && <Polyline positions={baselineForecastLine} pathOptions={{ color: BASELINE_REF_COLOR, weight: 2, opacity: 0.8, dashArray: '3 5' }} />}
+              
+              {/* Main scenario predicted track */}
+              {replayIndex === -1 && <Polyline positions={forecastLine} pathOptions={{ color: trackColor, weight: 2.5, opacity: 0.95, dashArray: '6 6' }} />}
+              
+              {/* AI Track Overlay */}
+              {aiLine && replayIndex === -1 && <Polyline positions={aiLine} pathOptions={{ color: 'rgba(255, 50, 50, 0.9)', weight: 3.5, opacity: 1, dashArray: '8 8' }} />}
+
+              {/* Points */}
+              {result.trackPoints.filter(p => replayIndex === -1 || p.kind === 'history' || p.kind === 'current').map((p, idx) => {
+                const isReplayTarget = replayIndex >= 0 && idx === replayIndex;
+                const isCurrent = p.kind === 'current' && replayIndex === -1;
+                const isActive = isCurrent || isReplayTarget;
+                return (
+                  <CircleMarker key={p.id} center={[p.lat, p.lng]} radius={isActive ? 8 : 4} pathOptions={{ color: isActive ? 'var(--color-signal)' : (p.kind === 'forecast' ? trackColor : 'var(--color-ink-faint)'), fillColor: isActive ? 'var(--color-signal)' : (p.kind === 'forecast' ? trackColor : 'var(--color-panel)'), fillOpacity: isActive ? 0.9 : 1, weight: 2 }}>
+                    <Popup>
+                      <div className="mono">
+                        <p className="mb-1 font-semibold text-[13px]">{p.label}</p>
+                        <p>Lat: {p.lat.toFixed(2)} &middot; Lng: {p.lng.toFixed(2)}</p>
+                        <p>Wind: {p.windKmh} km/h</p>
+                      </div>
+                    </Popup>
+                  </CircleMarker>
+                );
+              })}
+
+              {nearbyCities.map((city) => (
+                <CircleMarker key={city.name} center={[city.lat, city.lng]} radius={4} pathOptions={{ color: riskDotColor(city.riskLevel), fillColor: 'var(--color-panel)', fillOpacity: 1, weight: 2 }}>
+                  <Tooltip direction="top" offset={[0, -4]} permanent={false}><span className="mono">{city.name} &middot; {city.riskLevel}</span></Tooltip>
+                </CircleMarker>
+              ))}
+            </>
+          )}
         </MapContainer>
       )}
 
-      {viewMode === '2D' && <Legend isModified={isModified} priority={result.emergencyPriority} aiData={aiData} />}
+      {viewMode === '2D' && <Legend isModified={isModified} priority={result.emergencyPriority} aiData={aiData} appMode={appMode} />}
     </div>
   );
 }

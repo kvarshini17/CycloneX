@@ -1,24 +1,52 @@
-﻿import { cycloneProfile } from '../data/demoData';
+import { cycloneProfile } from '../data/demoData';
 import { useSimulation } from '../context/SimulationContext';
 import { StatCard } from './ui';
 import { Activity, AlertCircle } from 'lucide-react';
 
 export function StatusCards() {
-  const { result, isModified, aiData, aiStatus } = useSimulation();
+  const { result, isModified, aiData, aiStatus, appMode, activeCyclones, realAnalysis } = useSimulation();
+
+  // Mode-aware values
+  const isReal = appMode === 'REAL';
+  const realMatched = realAnalysis?.matched_cyclone;
+  
+  const statusLabel = isReal
+    ? (realMatched ? 'ACTIVE' : activeCyclones.length > 0 ? `${activeCyclones.length} ACTIVE` : 'NONE')
+    : 'ACTIVE';
+  const statusSub = isReal
+    ? (realMatched ? realMatched.name : activeCyclones.length > 0 ? 'Monitored Basins' : 'No active storm')
+    : cycloneProfile.name;
+
+  const classificationValue = isReal
+    ? (realMatched ? realMatched.classification : (realAnalysis?.cyclone_status ? 'Environmental Analysis' : 'Monitoring'))
+    : result.stage;
+  const classificationSub = isReal
+    ? (realMatched ? `Source: ${realMatched.source.split(' ')[0]}` : 'Global Satellite Scan')
+    : (isModified ? 'Simulated scenario' : 'Category: Severe');
+
+  const windValue = isReal
+    ? (realAnalysis?.environment?.wind_kmh != null ? `${realAnalysis.environment.wind_kmh} km/h` : '--')
+    : `${result.windKmh} km/h`;
+  const windSub = isReal ? 'Live Open-Meteo' : 'Sustained, 3-min avg';
+
+  const pressureValue = isReal
+    ? (realAnalysis?.environment?.pressure_hpa != null ? `${realAnalysis.environment.pressure_hpa} hPa` : '--')
+    : `${result.pressureHpa} hPa`;
+  const pressureSub = isReal ? 'Observed Sea-Level' : 'Falling gradually';
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
       {/* 1. Cyclone Status */}
-      <StatCard label="Cyclone Status" value="ACTIVE" tone="signal" sub={cycloneProfile.name} />
+      <StatCard label="Cyclone Status" value={statusLabel} tone={isReal && !realMatched ? 'default' : 'signal'} sub={statusSub} />
       
       {/* 2. Classification */}
-      <StatCard label="Classification" value={result.stage} tone="default" sub={isModified ? 'Simulated scenario' : 'Category: Severe'} />
+      <StatCard label="Classification" value={classificationValue} tone="default" sub={classificationSub} />
       
       {/* 3. Current Wind */}
-      <StatCard label="Current Wind" value={`${result.windKmh} km/h`} tone="warn" sub="Sustained, 3-min avg" />
+      <StatCard label="Current Wind" value={windValue} tone="warn" sub={windSub} />
       
       {/* 4. Central Pressure */}
-      <StatCard label="Central Pressure" value={`${result.pressureHpa} hPa`} tone="data" sub="Falling gradually" />
+      <StatCard label="Central Pressure" value={pressureValue} tone="data" sub={pressureSub} />
       
       {/* 5. AI Predicted Wind */}
       <div className="rounded-xl border border-hairline bg-panel-raised p-4 flex flex-col justify-between">

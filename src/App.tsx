@@ -13,23 +13,34 @@ import { CommunicationRisk } from './components/CommunicationRisk';
 import { EvacuationShelter } from './components/EvacuationShelter';
 import { WhatIfSimulator } from './components/WhatIfSimulator';
 import { AIDisasterCommander } from './components/AIDisasterCommander';
+import { RealDataAnalysisPanel } from './components/RealDataAnalysisPanel';
 import { MultiSourceIntelligence } from './components/MultiSourceIntelligence';
 import { SectionHeading } from './components/ui';
 import { useSimulation } from './context/SimulationContext';
 
 function DashboardSection({ onNavigate }: { onNavigate: (id: SectionId) => void }) {
-  const { liveObservation, appMode } = useSimulation();
+  const { liveObservation, appMode, activeCyclones, realAnalysis } = useSimulation();
 
-  const oceanSst = liveObservation?.ocean?.sstCelsius;
-  const isOceanLive = liveObservation?.ocean?.sourceStatus === 'CONNECTED';
+  const oceanSst = appMode === 'REAL'
+    ? realAnalysis?.environment?.sst_c
+    : liveObservation?.ocean?.sstCelsius;
+  const isOceanLive = appMode === 'REAL'
+    ? realAnalysis?.environment?.sst_status === 'LIVE'
+    : liveObservation?.ocean?.sourceStatus === 'CONNECTED';
   const oceanBadge = oceanSst != null
     ? `🌊 Ocean SST (${oceanSst}°C) · ${isOceanLive ? 'LIVE COPERNICUS' : 'SAMPLE'}`
-    : '🌊 Ocean SST (29.4°C) · SAMPLE';
+    : (appMode === 'REAL' ? '🌊 Ocean SST · CLICK TO QUERY' : '🌊 Ocean SST (29.4°C) · SAMPLE');
 
-  const isWeatherLive = liveObservation?.atmosphere?.sourceStatus === 'CONNECTED' || (liveObservation?.atmosphere && (liveObservation.atmosphere as any).isRealLiveFetch);
-  const atmosphereBadge = liveObservation?.atmosphere
-    ? `🌬 Atmosphere · ${isWeatherLive ? 'LIVE OPEN-METEO' : (appMode === 'DEMO' ? 'DEMO REPLAY' : 'SAMPLE')}`
-    : `🌬 Atmosphere · ${appMode === 'DEMO' ? 'DEMO REPLAY' : 'SAMPLE'}`;
+  const isWeatherLive = appMode === 'REAL'
+    ? realAnalysis?.environment?.weather_status === 'LIVE'
+    : (liveObservation?.atmosphere?.sourceStatus === 'CONNECTED' || (liveObservation?.atmosphere && (liveObservation.atmosphere as any).isRealLiveFetch));
+  const atmosphereBadge = appMode === 'REAL'
+    ? (realAnalysis?.environment?.wind_kmh != null
+        ? `🌬 Atmosphere (${realAnalysis.environment.wind_kmh} km/h) · ${isWeatherLive ? 'LIVE OPEN-METEO' : 'OFFLINE'}`
+        : '🌬 Atmosphere · CLICK TO QUERY')
+    : (liveObservation?.atmosphere
+        ? `🌬 Atmosphere · ${isWeatherLive ? 'LIVE OPEN-METEO' : 'DEMO REPLAY'}`
+        : '🌬 Atmosphere · DEMO REPLAY');
 
   return (
     <div className="space-y-5">
@@ -40,7 +51,7 @@ function DashboardSection({ onNavigate }: { onNavigate: (id: SectionId) => void 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <span className="font-semibold text-ink flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-signal animate-pulse" />
-            Multi-Source Inputs:
+            {appMode === 'REAL' ? 'Global Multi-Source Feeds:' : 'Multi-Source Inputs:'}
           </span>
           <span className="rounded bg-void px-2 py-0.5 text-[11px] font-mono text-ink-dim border border-hairline">
             🛰 Satellite (VIS/IR/WV) · SAMPLE
@@ -56,10 +67,10 @@ function DashboardSection({ onNavigate }: { onNavigate: (id: SectionId) => void 
             {atmosphereBadge}
           </span>
           <span className="rounded bg-void px-2 py-0.5 text-[11px] font-mono text-ink-dim border border-hairline">
-            🌀 Historical IBTrACS · READY
+            {appMode === 'REAL' ? `🌀 Monitored Cyclones · ${activeCyclones.length} ACTIVE` : '🌀 Historical IBTrACS · READY'}
           </span>
           <span className="rounded bg-void px-2 py-0.5 text-[11px] font-mono text-ink-dim border border-hairline">
-            🗺 GIS / DEM · READY
+            {appMode === 'REAL' ? '🗺 World Map · INTERACTIVE' : '🗺 GIS / DEM · READY'}
           </span>
         </div>
         <button
@@ -72,7 +83,11 @@ function DashboardSection({ onNavigate }: { onNavigate: (id: SectionId) => void 
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.7fr_1fr]">
         <CycloneMap height="h-[520px]" />
-        <AIDisasterCommander compact />
+        {appMode === 'REAL' ? (
+          <RealDataAnalysisPanel />
+        ) : (
+          <AIDisasterCommander compact />
+        )}
       </div>
     </div>
   );

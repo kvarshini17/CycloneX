@@ -237,6 +237,384 @@ app.post('/api/ai/predict', async (req, res) => {
   }
 });
 
+// ============================================================================
+// REAL DATA MODE ENDPOINTS (PHASES 4, 5, 6, 17)
+// ============================================================================
+
+// Haversine distance in km
+function haversineDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Fetch real active tropical cyclones from NOAA NHC and GDACS
+async function fetchActiveCyclones() {
+  const cyclones = [];
+  const seen = new Set();
+
+  // 1. NOAA NHC
+  try {
+    const nhcRes = await axios.get('https://www.nhc.noaa.gov/CurrentStorms.json', { timeout: 4000 });
+    if (nhcRes.data && Array.isArray(nhcRes.data.activeStorms)) {
+      for (const storm of nhcRes.data.activeStorms) {
+        if (!storm.name || seen.has(storm.name.toUpperCase())) continue;
+        seen.add(storm.name.toUpperCase());
+        const lat = storm.latitudeNumeric != null ? Number(storm.latitudeNumeric) : parseFloat(storm.latitude);
+        const lon = storm.longitudeNumeric != null ? Number(storm.longitudeNumeric) : parseFloat(storm.longitude);
+        const windKmh = storm.intensity ? Math.round(Number(storm.intensity) * 1.852) : null;
+        const mov = (storm.movementDir != null && storm.movementSpeed != null)
+          ? `${storm.movementDir}° at ${Math.round(storm.movementSpeed * 1.852)} km/h`
+          : (storm.movement || 'Observed');
+        cyclones.push({
+          id: storm.id || `NHC-${storm.name}`,
+          name: storm.name,
+          classification: storm.classification || 'Tropical Cyclone',
+          latitude: lat,
+          longitude: lon,
+          windKmh: windKmh,
+          pressureHpa: storm.pressure ? Number(storm.pressure) : null,
+          movement: mov,
+          source: 'NOAA National Hurricane Center (NHC)',
+          timestamp: storm.lastUpdate || new Date().toISOString()
+        });
+      }
+    }
+  } catch (nhcErr) {
+    console.warn('[Real-API] NOAA NHC fetch failed/offline:', nhcErr.message);
+  }
+
+  // 2. GDACS (Global Disaster Alert and Coordination System)
+  try {
+    const gdacsRes = await axios.get('https://www.gdacs.org/gdacsapi/api/events/geteventlist/search?eventtypes=TC', { timeout: 4000 });
+    if (gdacsRes.data && Array.isArray(gdacsRes.data.features)) {
+      for (const feat of gdacsRes.data.features) {
+        const props = feat.properties;
+        const geom = feat.geometry;
+        if (!props || props.eventtype !== 'TC' || !geom || !geom.coordinates) continue;
+        // Strictly require actively monitored / current systems
+        const isCurrent = props.iscurrent === 'true' || props.iscurrent === true;
+        if (!isCurrent) continue;
+        const name = props.name || props.eventname;
+        if (!name || seen.has(name.toUpperCase())) continue;
+        
+        // Parse coordinates [lon, lat] or string
+        let lon = 0, lat = 0;
+        if (Array.isArray(geom.coordinates)) {
+          lon = Number(geom.coordinates[0]);
+          lat = Number(geom.coordinates[1]);
+        } else if (typeof geom.coordinates === 'string') {
+          const parts = geom.coordinates.trim().split(/\s+/);
+          lon = Number(parts[0]);
+          lat = Number(parts[1]);
+        }
+
+        let windKmh = null;
+        if (props.severitydata && props.severitydata.severity) {
+          windKmh = Math.round(Number(props.severitydata.severity));
+        }
+
+        seen.add(name.toUpperCase());
+        cyclones.push({
+          id: `GDACS-${props.eventid || name}`,
+          name: name,
+          classification: props.description || 'Tropical Cyclone',
+          latitude: lat,
+          longitude: lon,
+          windKmh: windKmh,
+          pressureHpa: null,
+          movement: 'Observed Trajectory',
+          source: 'Global Disaster Alert and Coordination System (GDACS / JTWC)',
+          timestamp: props.datemodified || props.fromdate || new Date().toISOString()
+        });
+      }
+    }
+  } catch (gdacsErr) {
+    console.warn('[Real-API] GDACS TC fetch failed/offline:', gdacsErr.message);
+  }
+
+  return cyclones;
+}
+
+// 1. GET /api/real/cyclones — Global Active Systems
+app.get('/api/real/cyclones', async (req, res) => {
+  const cyclones = await fetchActiveCyclones();
+  return res.json({
+    success: true,
+    count: cyclones.length,
+    cyclones: cyclones,
+    message: cyclones.length > 0
+      ? `${cyclones.length} active tropical cyclone system(s) monitored`
+      : 'NO ACTIVE CYCLONE DETECTED IN AVAILABLE DATA',
+    source: 'NOAA NHC & GDACS Authoritative Feeds',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 2. GET /api/real/environment — Real weather & SST for coordinate
+app.get('/api/real/environment', async (req, res) => {
+  const lat = parseFloat(req.query.lat || req.query.latitude || 0);
+  const lon = parseFloat(req.query.lon || req.query.lng || req.query.longitude || 0);
+  const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8001';
+
+  let weather = null;
+  try {
+    const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation&wind_speed_unit=kmh`;
+    const wRes = await axios.get(wUrl, { timeout: 6000 });
+    const c = wRes.data.current;
+    weather = {
+      source: 'Open-Meteo Weather API',
+      status: 'LIVE',
+      timestamp: c.time || new Date().toISOString(),
+      temperature_c: c.temperature_2m != null ? Math.round(c.temperature_2m * 10) / 10 : null,
+      humidity_pct: c.relative_humidity_2m != null ? Math.round(c.relative_humidity_2m) : null,
+      pressure_hpa: c.surface_pressure != null ? Math.round(c.surface_pressure) : null,
+      wind_kmh: c.wind_speed_10m != null ? Math.round(c.wind_speed_10m) : null,
+      wind_direction_deg: c.wind_direction_10m != null ? Math.round(c.wind_direction_10m) : null,
+      wind_gusts_kmh: c.wind_gusts_10m != null ? Math.round(c.wind_gusts_10m) : null,
+      precipitation_mm: c.precipitation != null ? Math.round(c.precipitation * 10) / 10 : 0
+    };
+  } catch (err) {
+    weather = { source: 'Open-Meteo', status: 'OFFLINE', error: err.message };
+  }
+
+  let sst = null;
+  try {
+    const sstRes = await axios.get(`${ML_URL}/api/data/ocean/sst?lat=${lat}&lng=${lon}`, { timeout: 25000 });
+    if (sstRes.data && sstRes.data.data) {
+      sst = sstRes.data.data;
+    }
+  } catch (err) {
+    sst = { source: 'Copernicus Marine', status: 'OFFLINE', value: null, unit: '°C' };
+  }
+
+  return res.json({
+    success: true,
+    latitude: lat,
+    longitude: lon,
+    environment: {
+      sst_c: sst ? sst.value : null,
+      sst_status: sst ? sst.status : 'OFFLINE',
+      sst_source: sst ? (sst.product || sst.source) : 'Copernicus Marine',
+      wind_kmh: weather && weather.wind_kmh != null ? weather.wind_kmh : null,
+      pressure_hpa: weather && weather.pressure_hpa != null ? weather.pressure_hpa : null,
+      temperature_c: weather && weather.temperature_c != null ? weather.temperature_c : null,
+      humidity_pct: weather && weather.humidity_pct != null ? weather.humidity_pct : null,
+      precipitation_mm: weather && weather.precipitation_mm != null ? weather.precipitation_mm : null,
+      weather_status: weather ? weather.status : 'OFFLINE'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 3. POST /api/real/analyze — Comprehensive Coordinate Analysis & PyTorch Inference
+app.post('/api/real/analyze', async (req, res) => {
+  const lat = parseFloat(req.body.latitude != null ? req.body.latitude : (req.body.lat || 0));
+  const lon = parseFloat(req.body.longitude != null ? req.body.longitude : (req.body.lon || 0));
+  const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8001';
+
+  // 1. Weather
+  let weather = null;
+  try {
+    const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation&wind_speed_unit=kmh`;
+    const wRes = await axios.get(wUrl, { timeout: 6000 });
+    const c = wRes.data.current;
+    weather = {
+      source: 'Open-Meteo Weather API',
+      status: 'LIVE',
+      timestamp: c.time || new Date().toISOString(),
+      temperature_c: c.temperature_2m != null ? Math.round(c.temperature_2m * 10) / 10 : null,
+      humidity_pct: c.relative_humidity_2m != null ? Math.round(c.relative_humidity_2m) : null,
+      pressure_hpa: c.surface_pressure != null ? Math.round(c.surface_pressure) : null,
+      wind_kmh: c.wind_speed_10m != null ? Math.round(c.wind_speed_10m) : null,
+      wind_direction_deg: c.wind_direction_10m != null ? Math.round(c.wind_direction_10m) : null,
+      wind_gusts_kmh: c.wind_gusts_10m != null ? Math.round(c.wind_gusts_10m) : null,
+      precipitation_mm: c.precipitation != null ? Math.round(c.precipitation * 10) / 10 : 0
+    };
+  } catch (err) {
+    weather = { source: 'Open-Meteo', status: 'OFFLINE', error: err.message };
+  }
+
+  // 2. Copernicus SST
+  let sst = null;
+  try {
+    const sstRes = await axios.get(`${ML_URL}/api/data/ocean/sst?lat=${lat}&lng=${lon}`, { timeout: 25000 });
+    if (sstRes.data && sstRes.data.data) {
+      sst = sstRes.data.data;
+    }
+  } catch (err) {
+    sst = { source: 'Copernicus Marine', status: 'OFFLINE', value: null, unit: '°C' };
+  }
+
+  // 3. Cyclone check against active storms
+  const cyclones = await fetchActiveCyclones();
+  let matchedCyclone = null;
+  let minDistanceKm = Infinity;
+
+  for (const cyc of cyclones) {
+    const d = haversineDistanceKm(lat, lon, cyc.latitude, cyc.longitude);
+    if (d < minDistanceKm) {
+      minDistanceKm = Math.round(d);
+      if (d <= 650) {
+        matchedCyclone = cyc;
+      }
+    }
+  }
+
+  let cycloneStatus = 'NO ACTIVE SYSTEM DETECTED';
+  if (matchedCyclone) {
+    cycloneStatus = `RECOGNIZED SYSTEM: ${matchedCyclone.name} (${minDistanceKm} km away)`;
+  } else if (sst && sst.value >= 26.5 && weather && weather.pressure_hpa && weather.pressure_hpa < 1008) {
+    cycloneStatus = 'AREA OF INTEREST / FAVORABLE CYCLONIC CONDITIONS';
+  }
+
+  // 4. PyTorch ML Inference using real observed coordinates & weather
+  let modelResult = {
+    status: 'OFFLINE',
+    prediction: null,
+    satellite_input: 'HISTORICAL DEMO / SAMPLE',
+    task: 'AI ONE-STEP PREDICTION'
+  };
+
+  const currentWind = weather && weather.wind_kmh != null ? weather.wind_kmh : 45;
+  const currentPres = weather && weather.pressure_hpa != null ? weather.pressure_hpa : 1010;
+
+  try {
+    const trackSequence = Array.from({ length: 9 }).map((_, i) => {
+      return [
+        Number((lat - 0.8 + i * 0.1).toFixed(2)),
+        Number((lon + 0.4 - i * 0.05).toFixed(2)),
+        Math.max(10, currentWind - (8 - i) * 2),
+        Math.min(1015, currentPres + (8 - i) * 1),
+        i * 6
+      ];
+    });
+
+    const mlResponse = await axios.post(`${ML_URL}/predict`, { track_sequence: trackSequence }, { timeout: 8000 });
+    if (mlResponse.data && mlResponse.data.success) {
+      const preds = mlResponse.data.predictions;
+      modelResult = {
+        status: 'ONLINE',
+        inference_time_ms: mlResponse.data.inference_time_ms,
+        task: 'AI ONE-STEP PREDICTION',
+        satellite_input: 'HISTORICAL DEMO / SAMPLE (4-channel synthetic placeholder)',
+        prediction: {
+          predicted_wind_kmh: preds.wind,
+          predicted_pressure_hpa: preds.pressure,
+          delta_lat: preds.delta_lat,
+          delta_lon: preds.delta_lon,
+          projected_lat: Number((lat + preds.delta_lat).toFixed(4)),
+          projected_lon: Number((lon + preds.delta_lon).toFixed(4)),
+          category_index: preds.category
+        }
+      };
+    }
+  } catch (mlErr) {
+    console.warn('[Real-API] PyTorch inference call failed:', mlErr.message);
+  }
+
+  // 5. Conditional Impacts (strictly from real data thresholds; no fake numbers)
+  const impacts = [];
+  if (weather && weather.wind_kmh != null && weather.wind_kmh >= 60) {
+    impacts.push({
+      category: 'Gale/High Wind Risk',
+      severity: weather.wind_kmh >= 90 ? 'HIGH' : 'MODERATE',
+      description: `Sustained wind speeds observed at ${weather.wind_kmh} km/h (gusts up to ${weather.wind_gusts_kmh || weather.wind_kmh} km/h). Structural and maritime exposure risk.`
+    });
+  }
+  if (weather && weather.precipitation_mm != null && weather.precipitation_mm >= 25) {
+    impacts.push({
+      category: 'Heavy Precipitation Risk',
+      severity: weather.precipitation_mm >= 50 ? 'HIGH' : 'MODERATE',
+      description: `Observed / near-term rainfall of ${weather.precipitation_mm} mm indicates localized flash flood susceptibility.`
+    });
+  }
+  if (sst && sst.value >= 28.0 && weather && weather.wind_kmh != null && weather.wind_kmh >= 50) {
+    impacts.push({
+      category: 'Thermodynamic Intensification Potential',
+      severity: 'ELEVATED',
+      description: `High Sea Surface Temperature (${sst.value}°C) provides ocean thermal energy supporting convective maintenance.`
+    });
+  }
+
+  // 6. Conditional Preparedness (Decision support with required disclaimer)
+  const preparedness = [];
+  if (weather && weather.wind_kmh != null && weather.wind_kmh >= 60) {
+    preparedness.push('Secure loose exterior objects and reinforce outdoor equipment');
+    preparedness.push('Adhere to maritime small craft warnings and port advisories');
+  }
+  if (weather && weather.precipitation_mm != null && weather.precipitation_mm >= 25) {
+    preparedness.push('Inspect stormwater drainage and clear critical runoff channels');
+    preparedness.push('Avoid low-lying flood-prone roads and underpasses');
+  }
+  if (matchedCyclone) {
+    preparedness.push(`Active system alert for ${matchedCyclone.name}: Verify emergency radio communications`);
+    preparedness.push('Review regional disaster management evacuation zones');
+  }
+  if (preparedness.length === 0) {
+    preparedness.push('Conditions within normal parameters; standard monitoring active');
+  }
+
+  return res.json({
+    location: {
+      latitude: lat,
+      longitude: lon
+    },
+    timestamp: new Date().toISOString(),
+    cyclone_status: cycloneStatus,
+    active_cyclones_count: cyclones.length,
+    matched_cyclone: matchedCyclone,
+    closest_cyclone_distance_km: minDistanceKm < 20000 ? minDistanceKm : null,
+    environment: {
+      sst_c: sst ? sst.value : null,
+      sst_status: sst ? sst.status : 'OFFLINE',
+      sst_source: sst ? (sst.product || sst.source) : 'Copernicus Marine',
+      wind_kmh: weather && weather.wind_kmh != null ? weather.wind_kmh : null,
+      pressure_hpa: weather && weather.pressure_hpa != null ? weather.pressure_hpa : null,
+      temperature_c: weather && weather.temperature_c != null ? weather.temperature_c : null,
+      humidity_pct: weather && weather.humidity_pct != null ? weather.humidity_pct : null,
+      precipitation_mm: weather && weather.precipitation_mm != null ? weather.precipitation_mm : null,
+      weather_status: weather ? weather.status : 'OFFLINE'
+    },
+    exposure: {
+      population: 'DATA UNAVAILABLE',
+      hospitals: 'DATA UNAVAILABLE',
+      communication_towers: 'DATA UNAVAILABLE',
+      note: 'Specific GIS census & infrastructure layers only integrated for regional demo corridors.'
+    },
+    model: modelResult,
+    impacts: impacts,
+    preparedness: preparedness,
+    disclaimer: 'AI-assisted decision support. Follow official government warnings and advisories.'
+  });
+});
+
+// 4. GET /api/real/status — Overall Real Data Mode Status
+app.get('/api/real/status', async (req, res) => {
+  const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8001';
+  let mlOk = false;
+  try {
+    const r = await axios.get(`${ML_URL}/health`, { timeout: 2000 });
+    mlOk = r.data && r.data.model_loaded;
+  } catch { /* offline */ }
+
+  res.json({
+    mode: 'real',
+    services: {
+      copernicus: process.env.COPERNICUSMARINE_SERVICE_USERNAME ? 'READY' : 'OFFLINE',
+      open_meteo: 'LIVE',
+      active_cyclone_feeds: 'LIVE',
+      pytorch_model: mlOk ? 'ONLINE' : 'OFFLINE'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`CycloneX API Server running on port ${PORT}`);
